@@ -1,7 +1,6 @@
 //!  Filtered clique (Vietoris-Rips) complexes
 
 use num::Signed;
-use pyo3::exceptions::PyTypeError;
 use pyo3::prelude::*;
 use pyo3::types::IntoPyDict;
 use pyo3::wrap_pyfunction;
@@ -138,10 +137,10 @@ impl FactoredBoundaryMatrixVr{
             dissimilarity_matrix:       & PyAny,
             homology_dimension_max:     Option< isize >,            
         ) 
-    ->  FactoredBoundaryMatrixVr
+    ->  PyResult<FactoredBoundaryMatrixVr>
     {
 
-        let dissimilarity_matrix = import_sparse_matrix(py, dissimilarity_matrix).ok().unwrap();
+        let dissimilarity_matrix = import_sparse_matrix(py, dissimilarity_matrix)?;
 
         // print_indexed_major_views( && dissimilarity_matrix, 0..dissimilarity_matrix.rows() );
 
@@ -195,7 +194,7 @@ impl FactoredBoundaryMatrixVr{
         // ));
         // ------------------------        
 
-        return FactoredBoundaryMatrixVr{ factored } // FactoredBoundaryMatrix { umatch, row_indices }
+        return Ok(FactoredBoundaryMatrixVr{ factored }) // FactoredBoundaryMatrix { umatch, row_indices }
     }
 
    
@@ -435,9 +434,8 @@ impl FactoredBoundaryMatrixVr{
                 py:                             Python<'_>,
                 return_cycle_representatives:   bool,
                 return_bounding_chains:         bool,
-        ) 
-        -> Py<PyAny> 
-        {
+        ) -> PyResult<PyObject>
+    {
         // unpack the factored boundary matrix into a barcode
         let dim_fn = |x: &SimplexFiltered<FilVal> | x.dimension() as isize;
         let fil_fn = |x: &SimplexFiltered<FilVal> | x.filtration();    
@@ -453,35 +451,35 @@ impl FactoredBoundaryMatrixVr{
         
         let dict = PyDict::new(py);
         dict.set_item( "id", 
-            barcode.bars().iter().map(|x| x.id_number() ).collect_vec() ).ok().unwrap();
+            barcode.bars().iter().map(|x| x.id_number() ).collect_vec() )?;
         dict.set_item( "dimension", 
-            barcode.bars().iter().map(|x| x.birth_column().dimension() ).collect_vec() ).ok().unwrap();            
+            barcode.bars().iter().map(|x| x.birth_column().dimension() ).collect_vec() )?;            
         dict.set_item( "birth", 
-            barcode.bars().iter().map(|x| x.birth_f64() ).collect_vec() ).ok().unwrap();
+            barcode.bars().iter().map(|x| x.birth_f64() ).collect_vec() )?;
         dict.set_item( "death", 
-            barcode.bars().iter().map(|x| x.death_f64() ).collect_vec() ).ok().unwrap();
+            barcode.bars().iter().map(|x| x.death_f64() ).collect_vec() )?;
         dict.set_item( "birth simplex", 
-            barcode.bars().iter().map(|x| x.birth_column().vertices() ).collect_vec() ).ok().unwrap();
+            barcode.bars().iter().map(|x| x.birth_column().vertices() ).collect_vec() )?;
         dict.set_item( "death simplex", 
-            barcode.bars().iter().map(|x| x.death_column().clone().map(|x| x.vertices().clone() ) ).collect_vec()).ok().unwrap();
+            barcode.bars().iter().map(|x| x.death_column().clone().map(|x| x.vertices().clone() ) ).collect_vec())?;
         if return_cycle_representatives {
             dict.set_item( "cycle representative", 
-                barcode.bars().iter().map(|x| x.cycle_representative().as_ref().unwrap().clone().export() ).collect_vec() ).ok().unwrap();
+                barcode.bars().iter().map(|x| x.cycle_representative().as_ref().unwrap().clone().export() ).collect_vec() )?;
             dict.set_item( "cycle nnz", 
-                barcode.bars().iter().map(|x| x.cycle_representative().as_ref().map(|x| x.len() ) ).collect_vec() ).ok().unwrap();            
+                barcode.bars().iter().map(|x| x.cycle_representative().as_ref().map(|x| x.len() ) ).collect_vec() )?;            
         }
         if return_bounding_chains {
             dict.set_item( "bounding chain", 
-                barcode.bars().iter().map(|x| x.bounding_chain().as_ref().map(|x| x.clone().export()) ).collect_vec() ).ok().unwrap();                    
+                barcode.bars().iter().map(|x| x.bounding_chain().as_ref().map(|x| x.clone().export()) ).collect_vec() )?;                    
             dict.set_item( "bounding nnz", 
-                barcode.bars().iter().map(|x| x.bounding_chain().as_ref().map(|x| x.len() ) ).collect_vec() ).ok().unwrap();                                
+                barcode.bars().iter().map(|x| x.bounding_chain().as_ref().map(|x| x.len() ) ).collect_vec() )?;                                
         }
           
-        let pandas = py.import("pandas").ok().unwrap();       
+        let pandas = py.import("pandas")?;       
         let df: Py<PyAny> = pandas.call_method("DataFrame", ( dict, ), None)
-            .map(Into::into).ok().unwrap();
+            .map(Into::into)?;
         df.call_method( py, "set_index", ( "id", ), None)
-            .map(Into::into).ok().unwrap()            
+            .map(Into::into)           
     }    
 
 
@@ -726,7 +724,9 @@ impl FactoredBoundaryMatrixVr{
                 birth_simplex:                      Vec< u16 >,
                 problem_type:                       Option< &str >,
                 py: Python< 'py >,
-            ) -> Option< Py<PyAny> > { // MinimalCyclePySimplexFilteredRational {
+            ) ->  PyResult<PyObject> // Option< Py<PyAny> > 
+    { // MinimalCyclePySimplexFilteredRational {
+        use pyo3::exceptions;
 
         // inputs
         let array_matching                  =   self.factored.umatch().matching_ref();        
@@ -738,7 +738,9 @@ impl FactoredBoundaryMatrixVr{
         let a = |k: &SimplexFiltered<FilVal>| self.factored.jordan_basis_vector(k.clone()); 
              
         // column b
-        let diam = self.factored.umatch().mapping_ref().diameter(&birth_simplex).unwrap();
+        let diam = 
+            self.factored.umatch().mapping_ref().diameter(&birth_simplex)
+            .ok_or(exceptions::PyException::new_err("No diameter found for birth simplex"))?;
         let birth_column = SimplexFiltered{ vertices: birth_simplex.clone(), filtration: diam };
         let dimension = birth_column.dimension();
         let b = self.factored.jordan_basis_vector( birth_column.clone() );
@@ -772,12 +774,18 @@ impl FactoredBoundaryMatrixVr{
                 println!("This error message is generated by OAT.");
                 println!("");
                 println!("");
-                return None
+                return Err(pyo3::exceptions::PyException::new_err("Invalid problem type"));
             }                              
         };
 
         // solve
-        let optimized = oat_rust::utilities::optimization::minimize_l1::minimize_l1(a, b, obj_fn, column_indices).unwrap();
+        let optimized = 
+            oat_rust::
+            utilities::
+            optimization::
+            minimize_l1::
+            minimize_l1(a, b, obj_fn, column_indices)
+            .map_err(|e| exceptions::PyException::new_err(e))?;
 
         // formatting
         let to_ratio = |x: f64| -> Ratio<isize> { 
@@ -809,7 +817,9 @@ impl FactoredBoundaryMatrixVr{
                 .map(|(k,v)| (array_matching.keymaj_to_keymin( &k ).clone().unwrap(),v) )
                 .multiply_matrix_packet_minor_descend( self.factored.jordan_basis_matrix_packet() )
                 .collect_vec();
-        bounding_difference.reverse(); //    PLACE IN ASECNDING ORDER
+        // bounding_difference.reverse(); //    PLACE IN ASECNDING ORDER
+        // Ethan 2024-06-12: removed as fix for some cycle optimizations
+        // crashing within RequireStrictAscentWithPanic
 
         // essential cycles involved
         let mut essential_difference    =   
@@ -817,7 +827,9 @@ impl FactoredBoundaryMatrixVr{
             .filter( |x| array_matching.lacks_keymaj( &x.0 ) ) // only take entries for boundaries
             .multiply_matrix_packet_minor_descend( self.factored.jordan_basis_matrix_packet() )
             .collect_vec();      
-        essential_difference.reverse(); //    PLACE IN ASECNDING ORDER 
+        // essential_difference.reverse(); //    PLACE IN ASECNDING ORDER 
+        // Ethan 2024-06-12: removed as fix for some cycle optimizations
+        // crashing within RequireStrictAscentWithPanic
 
         let objective_old               =   optimized.cost_b().clone();
         let objective_min               =   optimized.cost_y().clone();
@@ -896,7 +908,7 @@ impl FactoredBoundaryMatrixVr{
                 "difference in essential chains", 
                 "Ax + z - y"
             ]
-        ).ok().unwrap();
+        )?;
 
         // objective costs
         dict.set_item(
@@ -908,7 +920,7 @@ impl FactoredBoundaryMatrixVr{
                 None, 
                 None, 
             ] 
-        ).ok().unwrap(); 
+        )?; 
 
         // number of nonzero entries per vector       
         dict.set_item(
@@ -920,7 +932,7 @@ impl FactoredBoundaryMatrixVr{
                 essential_difference.len(),
                 ax_plus_z_minus_y.len(),
             ] 
-        ).ok().unwrap();
+        )?;
 
         // vectors
         dict.set_item(
@@ -932,15 +944,15 @@ impl FactoredBoundaryMatrixVr{
                 essential_difference.clone().export(),
                 ax_plus_z_minus_y.clone().export(),
                 ] 
-        ).ok().unwrap();   
+        )?;   
 
-        let pandas = py.import("pandas").ok().unwrap();       
+        let pandas = py.import("pandas")?;       
         let dict = pandas.call_method("DataFrame", ( dict, ), None)
-            .map(Into::< Py<PyAny> >::into).ok().unwrap();
+            .map(Into::< Py<PyAny> >::into)?;
         let kwarg = vec![("inplace", true)].into_py_dict(py);        
-        dict.call_method( py, "set_index", ( "type of chain", ), Some(kwarg)).ok().unwrap();        
+        dict.call_method( py, "set_index", ( "type of chain", ), Some(kwarg))?;        
 
-        return Some( dict )
+        return Ok(dict);
     }        
 
 
@@ -951,7 +963,9 @@ impl FactoredBoundaryMatrixVr{
                 &self,
                 birth_simplex:                      Vec< u16 >,
                 py: Python< 'py >,
-            ) -> Option< Py<PyAny> > { // MinimalCyclePySimplexFilteredRational {
+            ) -> PyResult<PyObject>
+    { // MinimalCyclePySimplexFilteredRational {
+        use pyo3::exceptions;
 
         // inputs
         let array_mapping                   =   self.factored.umatch().mapping_ref_packet();                        
@@ -968,14 +982,21 @@ impl FactoredBoundaryMatrixVr{
         let birth_column = SimplexFiltered{ vertices: birth_simplex.clone(), filtration: diam };
 
         if array_matching.lacks_keymaj( &birth_column ) {
-            println!("\n\nError: the birth simplex provided has no corresponding death simplex.\nThis message is generated by OAT.\n\n");
-            return None
+            return Err(
+                exceptions::
+                PyException::
+                new_err(
+                    format!("\n\nError: the birth simplex provided has no corresponding death simplex.\nThis message is generated by OAT.\n\n")
+                )
+            );
         }
 
-        let death_column        =   array_matching.keymaj_to_keymin( &birth_column ).unwrap();
-        let death_dimension     =   death_column.dimension();
-        let death_filtration    =   death_column.filtration();
-        let b                   =   self.factored.jordan_basis_vector( death_column.clone() );
+        let death_column =
+            array_matching.keymaj_to_keymin( &birth_column )
+            .ok_or(exceptions::PyException::new_err("Major key not matched"))?;
+        let death_dimension = death_column.dimension();
+        let death_filtration = death_column.filtration();
+        let b = self.factored.jordan_basis_vector( death_column.clone() );
 
         // incides of a
         let column_indices
@@ -989,7 +1010,13 @@ impl FactoredBoundaryMatrixVr{
                     );
 
         // solve
-        let optimized = oat_rust::utilities::optimization::minimize_l1::minimize_l1(a, b, obj_fn, column_indices).unwrap();
+        let optimized = 
+            oat_rust::
+            utilities::
+            optimization::
+            minimize_l1::
+            minimize_l1(a, b, obj_fn, column_indices)
+            .map_err(|e| exceptions::PyException::new_err(e))?;
 
         // formatting
         let to_ratio = |x: f64| -> Ratio<isize> { Ratio::<isize>::approximate_float(x).unwrap() };
@@ -1017,13 +1044,15 @@ impl FactoredBoundaryMatrixVr{
 
         let boundary_initial            =   chain_initial.iter().cloned().multiply_matrix_packet_minor_descend( array_mapping.clone() ).collect_vec();
         let boundary_optimal            =   chain_optimal.iter().cloned().multiply_matrix_packet_minor_descend( array_mapping.clone() ).collect_vec();
-        let diff                        =   boundary_initial.iter().cloned().peekable().subtract(
-                                                boundary_optimal.iter().cloned().peekable(),
-                                                self.factored.umatch().ring_operator(),
-                                                self.factored.umatch().order_operator_major_reverse(),
-                                            )
-                                            .map( |x| x.1.abs() )
-                                            .max();
+        let diff = 
+            boundary_initial.iter().cloned().peekable()
+            .subtract(
+                boundary_optimal.iter().cloned().peekable(),
+                self.factored.umatch().ring_operator(),
+                self.factored.umatch().order_operator_major_reverse(),
+            )
+            .map( |x| x.1.abs() )
+            .max();
         println!("max difference in boundaries: {:?}", diff);
         // assert_eq!( boundary_initial, boundary_optimal ); // ensures that the initial and optimal chains have equal boundary
 
@@ -1037,7 +1066,7 @@ impl FactoredBoundaryMatrixVr{
                 "initial bounding chain", 
                 "optimal bounding chain", 
             ]
-        ).ok().unwrap();
+        )?;
 
         // objective costs
         dict.set_item(
@@ -1046,7 +1075,7 @@ impl FactoredBoundaryMatrixVr{
                 Some(objective_old), 
                 Some(objective_min), 
             ] 
-        ).ok().unwrap(); 
+        )?; 
 
         // number of nonzero entries per vector       
         dict.set_item(
@@ -1055,7 +1084,7 @@ impl FactoredBoundaryMatrixVr{
                 chain_initial.len(), 
                 chain_optimal.len(), 
             ] 
-        ).ok().unwrap();
+        )?;
 
         // vectors
         dict.set_item(
@@ -1064,15 +1093,15 @@ impl FactoredBoundaryMatrixVr{
                 chain_initial.clone().export(), 
                 chain_optimal.clone().export(), 
                 ] 
-        ).ok().unwrap();   
+        )?;   
 
-        let pandas = py.import("pandas").ok().unwrap();       
+        let pandas = py.import("pandas")?;       
         let dict = pandas.call_method("DataFrame", ( dict, ), None)
-            .map(Into::< Py<PyAny> >::into).ok().unwrap();
+            .map(Into::< Py<PyAny> >::into)?;
         let kwarg = vec![("inplace", true)].into_py_dict(py);        
-        dict.call_method( py, "set_index", ( "type of chain", ), Some(kwarg)).ok().unwrap();            
+        dict.call_method( py, "set_index", ( "type of chain", ), Some(kwarg))?;            
 
-        return Some( dict )
+        return Ok(dict);
     }        
 
 
@@ -1090,7 +1119,9 @@ impl FactoredBoundaryMatrixVr{
                 birth_simplex:                      Vec< u16 >,
                 problem_type:                       Option< &str >,
                 py: Python< 'py >,
-            ) -> Option< Py<PyAny> > { // MinimalCyclePySimplexFilteredRational {
+            ) -> PyResult<PyObject>
+    { // MinimalCyclePySimplexFilteredRational {
+        use pyo3::exceptions;
 
         // inputs
         let array_mapping                   =   self.factored.umatch().mapping_ref_packet();        
@@ -1107,28 +1138,26 @@ impl FactoredBoundaryMatrixVr{
         let birth_column = SimplexFiltered{ vertices: birth_simplex.clone(), filtration: diam };
 
         if array_matching.lacks_keymaj( &birth_column ) {
-            println!("\n\nError: the birth simplex provided has no corresponding death simplex.\nThis message is generated by OAT.\n\n");
-            return None
+            return Err(exceptions::PyException::new_err("array matching lacks key_major"));
         }
 
-        let death_column        =   array_matching.keymaj_to_keymin( &birth_column ).unwrap();
+        let death_column = 
+            array_matching.keymaj_to_keymin( &birth_column )
+            .ok_or(exceptions::PyException::new_err("No matching key_major"))?;
         let death_dimension     =   death_column.dimension();
         let death_filtration    =   death_column.filtration();
         let b                   =   self.factored.jordan_basis_vector( death_column.clone() ).collect_vec();
 
         let column_indices = match problem_type.unwrap_or("preserve PH basis") {
-            "preserve PH basis"    =>  {
-
-                Some( 
-                        self.factored.umatch().mapping_ref()
-                            .cliques_in_lexicographic_order_fixed_dimension( death_dimension as isize )
-                            .filter(
-                                |x|
-                                ( x.filtration() <=   death_filtration )
-                                &&
-                                ( x != &death_column )
-                            )  
-                    )
+            "preserve PH basis" => {
+                self.factored.umatch().mapping_ref()
+                .cliques_in_lexicographic_order_fixed_dimension( death_dimension as isize )
+                .filter(
+                    |x|
+                    ( x.filtration() <=   death_filtration )
+                    &&
+                    ( x != &death_column )
+                )
             }
             _ => {
                 println!("");
@@ -1137,12 +1166,18 @@ impl FactoredBoundaryMatrixVr{
                 println!("This error message is generated by OAT.");
                 println!("");
                 println!("");
-                None
+                return Err(exceptions::PyException::new_err("incorrect problem type"));
             }                              
-        }?;
+        };
 
         // solve
-        let optimized = oat_rust::utilities::optimization::minimize_l1::minimize_l1_kernel(a, b, obj_fn, column_indices).unwrap();
+        let optimized = 
+            oat_rust::
+            utilities::
+            optimization::
+            minimize_l1::
+            minimize_l1_kernel(a, b, obj_fn, column_indices)
+            .map_err(|e| exceptions::PyException::new_err(e))?;
 
         // formatting
         let to_ratio = |x: f64| -> Ratio<isize> { Ratio::<isize>::approximate_float(x).unwrap() };
@@ -1184,7 +1219,7 @@ impl FactoredBoundaryMatrixVr{
                 "optimal bounding chain", 
                 "difference in bounding chains", 
             ]
-        ).ok().unwrap();
+        )?;
 
         // objective costs
         dict.set_item(
@@ -1194,7 +1229,7 @@ impl FactoredBoundaryMatrixVr{
                 Some(objective_min), 
                 None, 
             ] 
-        ).ok().unwrap(); 
+        )?; 
 
         // number of nonzero entries per vector       
         dict.set_item(
@@ -1204,7 +1239,7 @@ impl FactoredBoundaryMatrixVr{
                 chain_optimal.len(), 
                 x.len(), 
             ] 
-        ).ok().unwrap();
+        )?;
 
         // vectors
         dict.set_item(
@@ -1214,15 +1249,15 @@ impl FactoredBoundaryMatrixVr{
                 chain_optimal.clone().export(), 
                 x.clone().export(), 
                 ] 
-        ).ok().unwrap();   
+        )?;   
 
-        let pandas = py.import("pandas").ok().unwrap();       
+        let pandas = py.import("pandas")?;       
         let dict = pandas.call_method("DataFrame", ( dict, ), None)
-            .map(Into::< Py<PyAny> >::into).ok().unwrap();
+            .map(Into::< Py<PyAny> >::into)?;
         let kwarg = vec![("inplace", true)].into_py_dict(py);        
-        dict.call_method( py, "set_index", ( "type of chain", ), Some(kwarg)).ok().unwrap();        
+        dict.call_method( py, "set_index", ( "type of chain", ), Some(kwarg))?;        
 
-        return Some( dict )
+        return Ok(dict);
     }        
 
 
@@ -1234,7 +1269,10 @@ impl FactoredBoundaryMatrixVr{
 
 
     /// Returns the birth/death row/column indices of the Jordan blocks in the persistent Jordan canonical form of the filtered boundary matrix.
-    pub fn jordan_block_indices< 'py >( &self,  py: Python< 'py >, ) -> Py<PyAny> {
+    pub fn jordan_block_indices< 'py >( &self,  py: Python< 'py >, ) -> PyResult<PyObject>
+    {
+        // use pyo3::exceptions;
+
         // unpack the factored boundary matrix into a barcode
         let dim_fn = |x: &SimplexFiltered<FilVal> | x.dimension() as isize;
         let fil_fn = |x: &SimplexFiltered<FilVal> | x.filtration(); 
@@ -1274,12 +1312,12 @@ impl FactoredBoundaryMatrixVr{
         // let pairs = self.factored.umatch().matching_ref().support();
         
         let dict = PyDict::new(py);
-        dict.set_item( "dimension", dimension ).ok().unwrap();
-        dict.set_item( "lifetime", lifetime ).ok().unwrap();        
-        dict.set_item( "birth simplex", birth_vertices ).ok().unwrap();        
-        dict.set_item( "birth filtration", birth_filtration ).ok().unwrap();         
-        dict.set_item( "death simplex", death_vertices_opt ).ok().unwrap();
-        dict.set_item( "death filtration", death_filtration_opt ).ok().unwrap();         
+        dict.set_item( "dimension", dimension )?;
+        dict.set_item( "lifetime", lifetime )?;        
+        dict.set_item( "birth simplex", birth_vertices )?;        
+        dict.set_item( "birth filtration", birth_filtration )?;         
+        dict.set_item( "death simplex", death_vertices_opt )?;
+        dict.set_item( "death filtration", death_filtration_opt )?;         
         // dict.set_item( "birth simplex", 
         //     births.clone().map(|x| x.0.vertices() ).collect_vec() ).ok().unwrap();
         // dict.set_item( "birth filtration", 
@@ -1289,9 +1327,9 @@ impl FactoredBoundaryMatrixVr{
         // dict.set_item( "death filtration", 
         //     births.clone().map( to_death_filtration_opt ).collect_vec() ).ok().unwrap(); 
 
-        let pandas = py.import("pandas").ok().unwrap();       
+        let pandas = py.import("pandas")?;
         pandas.call_method("DataFrame", ( dict, ), None)
-            .map(Into::into).ok().unwrap()
+            .map(Into::into)
         // df.call_method( py, "set_index", ( "id", ), None)
         //     .map(Into::into).ok().unwrap()           
     }    
