@@ -82,18 +82,19 @@ impl < T > Dimension for Vec< T > {
 fn chain_to_dataframe<'py>(
         chain:      Vec< ( Vec< isize >, Ratio< isize > ) >,
         py:         Python< 'py >,
-    ) -> Py<PyAny> {
+    ) -> PyResult<PyObject>
+{
 
     let (simplices,coefficients): (Vec<_>,Vec<_>) 
         =  chain.into_iter().map(|(s,z)| (s, z.export() ) )
                 .unzip();
     let dict = PyDict::new(py);
-    dict.set_item( "simplex", simplices ).ok().unwrap();   
-    dict.set_item( "coefficient", coefficients ).ok().unwrap();  
+    dict.set_item( "simplex", simplices )?;   
+    dict.set_item( "coefficient", coefficients )?;  
 
-    let pandas = py.import("pandas").ok().unwrap();       
+    let pandas = py.import("pandas")?;       
     pandas.call_method("DataFrame", ( dict, ), None)
-        .map(Into::into).ok().unwrap()    
+        .map(Into::into)    
 }
 
 
@@ -202,9 +203,10 @@ impl FactoredBoundaryMatrixDowker {
             & self,
             keymaj:         Vec< Vertex >,
             py:             Python< 'py >,
-        ) -> Py<PyAny> {
+        ) -> PyResult<PyObject>
+    {
 
-        chain_to_dataframe( self.factored.jordan_basis_vector(keymaj).collect_vec(), py)       
+        chain_to_dataframe( self.factored.jordan_basis_vector(keymaj).collect_vec(), py)
     }             
 
     /// Returns a column of the boundary matrix
@@ -212,7 +214,8 @@ impl FactoredBoundaryMatrixDowker {
             & self,
             index:          Vec< Vertex >,
             py:             Python< 'py >,
-        ) -> Py<PyAny> {
+        ) -> PyResult<PyObject>
+    {
 
         chain_to_dataframe( 
             self.factored.umatch().mapping_ref().view_minor_descend(index).collect_vec(), 
@@ -225,7 +228,8 @@ impl FactoredBoundaryMatrixDowker {
             & self,
             index:          Vec< Vertex >,
             py:             Python< 'py >,
-        ) -> Py<PyAny> {
+        ) -> PyResult<PyObject>
+    {
 
         chain_to_dataframe(
             self.factored.umatch().mapping_ref().view_major_ascend(index).collect_vec(), 
@@ -263,14 +267,14 @@ impl FactoredBoundaryMatrixDowker {
             .map(|(degree, c)| match degree == 0 { true=>{c},false=>{c+bounds[degree-1]} }).collect_vec();
 
         let dict = PyDict::new(py);
-        dict.set_item( "homology",              bettis  ).ok().unwrap();
-        dict.set_item( "space of chains",       chains  ).ok().unwrap();           
-        dict.set_item( "space of cycles",       cycles  ).ok().unwrap();
-        dict.set_item( "space of boundaries",   bounds  ).ok().unwrap();     
+        dict.set_item( "homology",              bettis  )?;
+        dict.set_item( "space of chains",       chains  )?;
+        dict.set_item( "space of cycles",       cycles  )?;
+        dict.set_item( "space of boundaries",   bounds  )?;
         
-        let pandas = py.import("pandas").ok().unwrap();       
+        let pandas = py.import("pandas")?;
         let df: Py<PyAny> = pandas.call_method("DataFrame", ( dict, ), None)
-            .map(Into::into).ok().unwrap();  
+            .map(Into::into)?;
         let index = df.getattr( py, "index", )?;
         index.setattr( py, "name", "dimension", )?;
         return Ok(df)
@@ -284,7 +288,8 @@ impl FactoredBoundaryMatrixDowker {
     }
 
     /// Return a data frame summarizing homology
-    pub fn homology<'py>( &self, py: Python<'py>) -> Py<PyAny> {
+    pub fn homology<'py>( &self, py: Python<'py>) -> PyResult<PyObject>
+    {
         let dict = PyDict::new(py);
         let harmonic_indices = self.homology_indices();
 
@@ -300,14 +305,14 @@ impl FactoredBoundaryMatrixDowker {
             chains.push( chain.export() );
         }
 
-        dict.set_item( "dimension", dims ).ok().unwrap();
-        dict.set_item( "birth simplex", birth_simplices ).ok().unwrap();
-        dict.set_item( "cycle representative", chains ).ok().unwrap();
+        dict.set_item( "dimension", dims )?;
+        dict.set_item( "birth simplex", birth_simplices )?;
+        dict.set_item( "cycle representative", chains )?;
         dict.set_item( "nnz", nnz ).ok().unwrap(); 
         
-        let pandas = py.import("pandas").ok().unwrap();       
+        let pandas = py.import("pandas")?;
         pandas.call_method("DataFrame", ( dict, ), None)
-            .map(Into::into).ok().unwrap()
+            .map(Into::into)
     }
 
 
@@ -372,8 +377,10 @@ impl FactoredBoundaryMatrixDowker {
                 birth_simplex:      Vec< isize >,
                 problem_type:         Option< &str >,
                 py: Python< 'py >,
-            ) -> Option< Py<PyAny> > // Option< &'py PyDict > { // MinimalCyclePySimplexFilteredRational 
-        {
+            ) -> PyResult<PyObject>
+            // Option< Py<PyAny> > // Option< &'py PyDict > { // MinimalCyclePySimplexFilteredRational 
+    {
+        use pyo3::exceptions;
 
         // inputs
         let array_matching                  =   self.factored.umatch().matching_ref();        
@@ -403,12 +410,18 @@ impl FactoredBoundaryMatrixDowker {
             }    
             _ => {
                 println!("\n\nError: Invaid input supplied for the `problem_type` keyword argument.\nThis message is generated by OAT.\n\n");
-                return None
+                return Err(exceptions::PyException::new_err("incorrect problem type"));
             }                              
         };
 
         // solve
-        let optimized = oat_rust::utilities::optimization::minimize_l1::minimize_l1(a, b, obj_fn, column_indices).unwrap();
+        let optimized = 
+            oat_rust::
+            utilities::
+            optimization::
+            minimize_l1::
+            minimize_l1(a, b, obj_fn, column_indices)
+            .map_err(|e| exceptions::PyException::new_err(e))?;
 
         // formatting
         let to_ratio = |x: f64| -> Ratio<isize> { Ratio::<isize>::approximate_float(x).unwrap() };
@@ -580,7 +593,7 @@ impl FactoredBoundaryMatrixDowker {
                 "difference in essential chains", 
                 "Ax + z - y"
             ]
-        ).ok().unwrap();
+        )?;
 
         // objective costs
         dict.set_item(
@@ -592,7 +605,7 @@ impl FactoredBoundaryMatrixDowker {
                 None, 
                 None, 
             ] 
-        ).ok().unwrap(); 
+        )?; 
 
         // number of nonzero entries per vector       
         dict.set_item(
@@ -604,7 +617,7 @@ impl FactoredBoundaryMatrixDowker {
                 essential_difference.len(),
                 ax_plus_z_minus_y.len(),
             ] 
-        ).ok().unwrap();
+        )?;
 
         // vectors
         dict.set_item(
@@ -616,15 +629,15 @@ impl FactoredBoundaryMatrixDowker {
                 essential_difference.clone().export(),
                 ax_plus_z_minus_y.clone().export(),
                 ] 
-        ).ok().unwrap();   
+        )?;   
 
-        let pandas = py.import("pandas").ok().unwrap();       
+        let pandas = py.import("pandas")?;       
         let dict = pandas.call_method("DataFrame", ( dict, ), None)
-            .map(Into::< Py<PyAny> >::into).ok().unwrap();
+            .map(Into::< Py<PyAny> >::into)?;
         let kwarg = vec![("inplace", true)].into_py_dict(py);        
-        dict.call_method( py, "set_index", ( "type of chain", ), Some(kwarg)).ok().unwrap();        
+        dict.call_method( py, "set_index", ( "type of chain", ), Some(kwarg))?;        
 
-        return Some( dict )        
+        return Ok(dict);
     }     
 
 
