@@ -809,7 +809,9 @@ impl FactoredBoundaryMatrixVr{
                 .map(|(k,v)| (array_matching.keymaj_to_keymin( &k ).clone().unwrap(),v) )
                 .multiply_matrix_packet_minor_descend( self.factored.jordan_basis_matrix_packet() )
                 .collect_vec();
-        bounding_difference.reverse(); //    PLACE IN ASECNDING ORDER
+        // bounding_difference.reverse(); //    PLACE IN ASECNDING ORDER
+        // Ethan 2024-06-12: removed as fix for some cycle optimizations
+        // crashing within RequireStrictAscentWithPanic
 
         // essential cycles involved
         let mut essential_difference    =   
@@ -817,7 +819,9 @@ impl FactoredBoundaryMatrixVr{
             .filter( |x| array_matching.lacks_keymaj( &x.0 ) ) // only take entries for boundaries
             .multiply_matrix_packet_minor_descend( self.factored.jordan_basis_matrix_packet() )
             .collect_vec();      
-        essential_difference.reverse(); //    PLACE IN ASECNDING ORDER 
+        // essential_difference.reverse(); //    PLACE IN ASECNDING ORDER 
+        // Ethan 2024-06-12: removed as fix for some cycle optimizations
+        // crashing within RequireStrictAscentWithPanic
 
         let objective_old               =   optimized.cost_b().clone();
         let objective_min               =   optimized.cost_y().clone();
