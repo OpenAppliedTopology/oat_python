@@ -15,8 +15,7 @@ version             =   "0.2.0"
 dependencies        =   [   
                             # The dependencies listed below will be installed automatically when users install the package on Python
                             "hypernetx",
-                            "IPython",
-                            "kaleido",
+                            "IPython",    # used to display dataframes in Sphinx gallery examples
                             "matplotlib",
                             "maturin", 
                             "nbformat", 

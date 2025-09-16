@@ -9,7 +9,7 @@ For the persistent (co)homology of point clouds, see the :ref:`Vietoris Rips sec
 
 
 import copy
-import importlib.resources
+import os
 from typing import Tuple
 import numpy as np
 import sklearn
@@ -338,10 +338,25 @@ def stanford_dragon():
     Notes
     -----
     The data file is saved to `oat_python/data/stanford_dragon.txt`.
-    """    
+    """     
+    
+    # Get the path relative to this file's location, going up two levels to reach project root
+    root_dir        =   os.path.dirname(
+                            os.path.dirname(
+                                os.path.dirname(
+                                    os.path.abspath(__file__)
+                                )
+                            )
+                        )
+    data_path       =   os.path.join(root_dir, 'data', 'stanford_dragon.txt')
+    with open(data_path, 'r') as f:
+        points      = np.loadtxt(f, delimiter=' ')
+    points          = points[:, [0, 2, 1]]
+    return points
 
-    with importlib.resources.files('oat_python.data').joinpath('stanford_dragon.txt').open('r') as f:
-        points = np.loadtxt(f, delimiter=' ')
-    points                      =   points[:,[0,2,1]]
-    return points   
+    # DEPRECATED / ok to delete:
+    # with importlib.resources.files('oat_python.data').joinpath('stanford_dragon.txt').open('r') as f:
+    #     points = np.loadtxt(f, delimiter=' ')
+    # points                      =   points[:,[0,2,1]]
+    # return points  
       
