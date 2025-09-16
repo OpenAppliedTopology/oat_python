@@ -1,6 +1,12 @@
-//! # Open Applied Topology
+//! [Open applied topology (OAT)](https://openappliedtopology.github.io) is a library for fast, user-friendly algebra and topology. OAT has 
 //! 
-//! Open Applied Topology (OAT) is open source software for fast, user-friendly algebra and topology.
+//! - a user-friendly frontend for Python users, called [oat_python](https://github.com/OpenAppliedTopology/oat_python)
+//! - a fast backend written in Rust, called [oat_rust](https://github.com/OpenAppliedTopology/oat_rust) 
+//! 
+//! This package contains the source code for [oat_python](https://crates.io/crates/oat_python).
+//! 
+//! # Contents
+//! 
 //! 
 //! - [Welcome!](#welcome)
 //! - [Community](#community)
@@ -10,7 +16,7 @@
 //! 
 //! # Welcome!
 //! 
-//! Welcome!  This package is <span style="color: orange;">OATpy</span>, part of the <span style="color: orange;">OAT ecosystem</span>.  It provides powerful tools for applied topology, including
+//! Welcome!  This package is [oat_python](https://crates.io/crates/oat_python), part of the Open Applied Topology ecosystem.  It provides powerful tools for applied topology, including
 //! 
 //! - Persistent homology
 //! - Simplicial complexes
@@ -21,7 +27,7 @@
 //! 
 //! # Community
 //! 
-//! OAT is by and for the open source community.  <span style="color: orange;">Reach out to the developers</span> if you
+//! OAT is by and for the open source community.  Reach out to the developers at [openappliedtopology@gmail.com](mailto:openappliedtopology@gmail.com) if you
 //! - Need help getting started
 //! - Wish for a missing feature
 //! - Want to try coding
@@ -34,47 +40,15 @@
 //! support.  PNNL now coordinates development.  See <span style="color: SteelBlue;">[here](./ATTRIBUTIONS.md)</span>
 //! for further details.
 //! 
-//! # <span style="color: orange;">[Values](./CODE_OF_CONDUCT.md)</span>
+//! # Values
 //! 
-//! Our <span style="color: orange;">shared values</span> are
+//! Our [shared values](https://github.com/OpenAppliedTopology/oat_python/blob/main/CODE_OF_CONDUCT.md) are
 //! 
 //! - Inclusion
 //! - Respect, and 
 //! - A shared passion to expand human knowledge, through algebraic topology
 //! 
 //! 
-// //! # Features
-// //! 
-// //! OATpy offers powerful features for beginners through advanced users.
-// //! 
-// //! #### Performance
-// //! 
-// //!  OAT is a first-class engine for cutting-edge applications.  It is specially suited to large, sparse matrices.
-// //!     The core library is written in Rust, a low-level systems programming language designed for safety and performance.
-// //!     High-level wrappers are available in Python.
-// //! 
-// //! #### Reliability
-// //! 
-// //! - Verification and test coverage: the OAT library is extensively tested.  In addition, the modular design of the library makes it easy for users to generate their own certificates of correctness.
-// //! - Safety: OAT inherits strong safety guarantees from the features of the Rust compiler, especially in the open source development process
-// //! 
-// //! #### Transparency
-// //! 
-// //! Transparency for OAT has multiple aspects
-// //! - Documentation:  emphasizes clarity and accessibility for users with all backgrounds. OAT docs provide explicit descriptions of both code *and* the underlying mathematical concepts. 
-// //! - [Tutorials](crate::tutorials) offer examples and helpful tips for beginners through advanced Rust users.
-// //! - Indexing: is one of the most pervasive challenges to writing transparent, interpretable code in computational topology.  OAT's matrices and vectors can be indexed by simplices, cubes, and other user-defined data structures, in addition to integers.
-// //! 
-// //! #### Modularity
-// //! 
-// // //! Creative recombination of building blocks is among the most important ways we innovate.  
-// //! 
-// //! OAT breaks problems into the same basic mathematical building blocks that topologists use when writing on a chalk board. Users can mix and match those blocks with confidence, with a simple, streamlined interface.  You can even create new components that work seemlessly with the rest of the library, including
-// //! 
-// //! - Coefficient rings
-// //! - Sparse matrix data structures
-// //! - Filtrations on a simplicial complex
-// //! 
 //! # Mission
 //! 
 //! **Performance**
@@ -100,52 +74,22 @@
 //! 
 //! **Modularity**
 //! 
-// //! Creative recombination of building blocks is among the most important ways we innovate.  
-//! 
 //!   OAT reduces complex problems to the same basic building blocks that topologists use when writing on a chalk board. Users can mix and match those blocks with confidence, using a simple, streamlined interface.  They can even create new components that work seemlessly with the rest of the library, including coefficient rings, sparse matrix data structures, and customized filtrations on simplicial complexes.
 //! 
-// //! OAT offers powerful features for beginners through advanced users.
-// //! 
-// //! <span style="color: orange;">Performance</span>
-// //! 
-// //!  OAT is a first-class engine for cutting-edge applications.  It is specially suited to large, sparse // matrices.
-// //!     The core library is written in Rust, a low-level systems programming language designed for safety and // performance.
-// //!     High-level wrappers are available in Python.
-// //! 
-// //! <span style="color: orange;">Reliability</span>
-// //! 
-// //! Verification and test coverage: the OAT library is extensively tested.  In addition, the modular design of // the library makes it easy for users to generate their own certificates of correctness.
-// //! 
-// //! Safety: OAT inherits strong safety guarantees from the features of the Rust compiler, especially in the // open source development process
-// //! 
-// //! <span style="color: orange;">Transparency</span>
-// //! 
-// //! - Documentation:  emphasizes clarity and accessibility for users with all backgrounds. OAT docs provide // explicit descriptions of both code *and* the underlying mathematical concepts. 
-// //! - [Online Jupyter notebook tutorials](crate::tutorials) offer examples and helpful tips for beginners // through advanced Rust users.
-// //! - Indexing: is one of the most pervasive challenges to writing transparent, interpretable code in // computational topology.  OAT's matrices and vectors can be indexed by simplices, cubes, and other user-defined // data structures, in addition to integers.
-// //! 
-// //! <span style="color: orange;">Modularity</span>
-// //! 
-// // //! Creative recombination of building blocks is among the most important ways we innovate.  
-// //! 
-// //!   OAT breaks problems into the same basic building blocks that topologists use when writing on a chalk // board. Users can mix and match those blocks with confidence, with a simple, streamlined interface.  They can // even create new components that work seemlessly with the rest of the library, including coefficient rings, // sparse matrix data structures, and customized filtrations on simplicial complexes.
 //! 
+//! # Contributing
 //! 
+//! We welcome contributions from everyone.
+//! That's the "Open" part of "Open Applied Topology"!
+//! Please see [CONTRIBUTING.md](https://github.com/OpenAppliedTopology/oat_python/blob/main/CONTRIBUTING.md)
+//! for help getting started.
 //! 
 //! # Get Started
 //! 
-//! #### Python users
-//! 
-//! OATpy will soon be available for `pip` install.  Until then, check out the <span style="color: orange;">readme</span> file on the project repository, for installation instructions.  To learn about the library:
-//! 
-//! - Check our our <span style="color: orange;">online Jupyter notebook tutorials!</span>
-//! - For details on a specific function or object, use Python's `help()` function.
-//! - Expanded documentation is on the way, stay tuned
-//! 
-//! 
-//! #### Developers
-//! 
-//! OATpy is written in two languages, Rust and Python.  It shares information between Rust and Python with [pyO3](https://pyo3.rs/).  If you'd like to explore this code, check out this <span style="color: orange;">introduction</span>.
+//! The oat_python package is written in Rust and Python. This is the documentation page for the Rust API, which you can explore by making selections either from the menu on the left or from the list of modules below.
+//!
+//! [**Python users and new developers:** see README.md on the package GitHub repository for tips to get started!](https://github.com/OpenAppliedTopology/oat_python/blob/main/README.md)
+
 
 
 pub mod vietoris_rips;

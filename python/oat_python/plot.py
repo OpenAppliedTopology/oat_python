@@ -173,7 +173,7 @@ def persistence_diagram( persistent_homology_dataframe, guideline_limit = None )
     from cmath import inf  
     C                               =   guideline_limit
     if C is None:
-        finite_endpoints = { float(x) for x in persistent_homology_dataframe["birth_filtration"].tolist() + persistent_homology_dataframe["death_filtration"].tolist()  if x != inf }
+        finite_endpoints = { float(x) for x in persistent_homology_dataframe['birth_filtration'].tolist() + persistent_homology_dataframe['death_filtration'].tolist()  if x != inf }
         if len(finite_endpoints)==0:
             C                       =   1
             infinity_proxy          =   1 # determines whwere we will draw the "infinity" line
@@ -207,14 +207,14 @@ def persistence_diagram( persistent_homology_dataframe, guideline_limit = None )
     flagged_dimensions  =   set()
 
     for index, row in persistent_homology_dataframe.iterrows():
-        x               =   row["birth_filtration"]
-        y               =   np.minimum( row["death_filtration"], infinity_proxy )
-        dimension       =   row["dimension"]
+        x               =   row['birth_filtration']
+        y               =   np.minimum( row['death_filtration'], infinity_proxy )
+        dimension       =   row['dimension']
         color           =   colors[ dimension ]
         text            =   f"birth filtration = {x}<br>" + \
                             f"death filtration = {y}<br>" +\
-                            f"interval length = { row["death_filtration"] - row["birth_filtration"]}<br>" +\
-                            f"birth simplex = {row["birth_simplex"]}<br>"
+                            f"interval length = { row['death_filtration'] - row['birth_filtration']}<br>" +\
+                            f"birth simplex = {row['birth_simplex']}<br>"
         
         if 'num_cycle_simplices' in row.keys():
             text += f"cyle representative num simplices = {row['num_cycle_simplices']}<br>"
@@ -297,7 +297,7 @@ def barcode( persistent_homology_dataframe, guideline_limit = None ):
     # fig.add_trace( go.Scatter(x=[],y=[],yaxis="y2") )   
     C                           =   guideline_limit
     if C is None:
-        C                       =   oat_python.barcode.max_finite_value( persistent_homology_dataframe["birth_filtration"].tolist() + persistent_homology_dataframe["death_filtration"].tolist() )
+        C                       =   oat_python.barcode.max_finite_value( persistent_homology_dataframe['birth_filtration'].tolist() + persistent_homology_dataframe['death_filtration'].tolist() )
         if C is None:
             C                   =   1
 
@@ -307,9 +307,9 @@ def barcode( persistent_homology_dataframe, guideline_limit = None ):
     intervals                   =   sorted(
                                         list(
                                             zip(
-                                                persistent_homology_dataframe["dimension"],
-                                                persistent_homology_dataframe["birth_filtration"], 
-                                                persistent_homology_dataframe["death_filtration"], 
+                                                persistent_homology_dataframe['dimension'],
+                                                persistent_homology_dataframe['birth_filtration'], 
+                                                persistent_homology_dataframe['death_filtration'], 
                                                 persistent_homology_dataframe.index 
                                             )
                                         )
@@ -317,7 +317,7 @@ def barcode( persistent_homology_dataframe, guideline_limit = None ):
     
     color_sequence              =   px.colors.qualitative.Plotly
     num_colors                  =   len(color_sequence)
-    max_dim                     =   max(persistent_homology_dataframe["dimension"])
+    max_dim                     =   max(persistent_homology_dataframe['dimension'])
     x                           =   [[] for _ in range(max_dim + 1)]
     y                           =   [[] for _ in range(max_dim + 1)]
     hovertext                   =   [[] for _ in range(max_dim + 1)]
@@ -333,8 +333,8 @@ def barcode( persistent_homology_dataframe, guideline_limit = None ):
         newtext                 = \
         f"birth filtration {birth}<br>" \
         + f"death filtration {death}<br>" \
-        + f"birth simplex {persistent_homology_dataframe["birth_simplex"][id]}<br>" \
-        + f"death simplex  {persistent_homology_dataframe["death_simplex"][id]}<br>"
+        + f"birth simplex {persistent_homology_dataframe['birth_simplex'][id]}<br>" \
+        + f"death simplex  {persistent_homology_dataframe['death_simplex'][id]}<br>"
         if 'num_cycle_simplices' in persistent_homology_dataframe.keys():
             newtext              += f"cycle representative num simplices {persistent_homology_dataframe['num_cycle_simplices'][id]}<br>"
         if 'num_bounding_simplices' in persistent_homology_dataframe.keys():
@@ -469,13 +469,13 @@ def fig_3d_for_simplices(
     
     # generate a trace for the triangles
     if not "opacity" in kwargs_triangles:
-        kwargs_triangles["opacity"] = 0.3
+        kwargs_triangles['opacity'] = 0.3
     if not "showlegend" in kwargs_triangles:
-        kwargs_triangles["showlegend"] = True
+        kwargs_triangles['showlegend'] = True
     if not "color" in kwargs_triangles:
-        kwargs_triangles["color"] = "orange"
+        kwargs_triangles['color'] = "orange"
     if not "name" in kwargs_triangles:
-        kwargs_triangles["name"] = "Triangles"
+        kwargs_triangles['name'] = "Triangles"
     trace_triangles     =   oat_python.plot.trace_3d_for_triangles(
                                 triangles             =   triangles,
                                 points                =   points,
@@ -490,11 +490,11 @@ def fig_3d_for_simplices(
     
     # trace for edges
     if not "mode" in kwargs_edges:
-        kwargs_edges["mode"] = "lines"
+        kwargs_edges['mode'] = "lines"
     if not "line" in kwargs_edges:
-        kwargs_edges["line"] = dict(color="white", width=4)
+        kwargs_edges['line'] = dict(color="white", width=4)
     if not "name" in kwargs_edges:
-        kwargs_edges["name"] = "Edges"
+        kwargs_edges['name'] = "Edges"
     trace_edges         =   oat_python.plot.trace_3d_for_edges(
                                 edges                 =   edges,
                                 points                =   points,
@@ -503,13 +503,13 @@ def fig_3d_for_simplices(
     
     # trace for the vertices
     if not "mode" in kwargs_points:
-        kwargs_points["mode"] = "markers"
+        kwargs_points['mode'] = "markers"
     if not "text" in kwargs_points:
-        kwargs_points["text"] = [ str(point_index) for point_index in points.keys() ]
+        kwargs_points['text'] = [ str(point_index) for point_index in points.keys() ]
     if not "marker" in kwargs_points:
-        kwargs_points["marker"] = dict(size=5, color="white")
+        kwargs_points['marker'] = dict(size=5, color="white")
     if not "name" in kwargs_points:
-        kwargs_points["name"] = "Vertices"
+        kwargs_points['name'] = "Vertices"
     trace_vertices      =   go.Scatter3d(
                                 x                   =   [ point[0] for point in points.values() ],
                                 y                   =   [ point[1] for point in points.values() ],
@@ -631,39 +631,39 @@ def contrast_initial_and_optimal_cycles_in_3d(
                                         birth_simplex 
                                     )
 
-    edges_initial           =   intial_cycle["simplex"].tolist()
-    edges_optimal           =   optimal_cycle_data["chain"]["optimal_cycle"]["simplex"].tolist()
-    triangles               =   optimal_cycle_data["chain"]["surface_between_cycles"]["simplex"].tolist() # the chain that bounds the difference between the cycles
+    edges_initial           =   intial_cycle['simplex'].tolist()
+    edges_optimal           =   optimal_cycle_data['chain']['optimal_cycle']['simplex'].tolist()
+    triangles               =   optimal_cycle_data['chain']['surface_between_cycles']['simplex'].tolist() # the chain that bounds the difference between the cycles
     
 
     if not "line" in kwargs_initial:
-        kwargs_initial["line"] = dict(color="white", width=10)
+        kwargs_initial['line'] = dict(color="white", width=10)
     if not "name" in kwargs_initial:
-        kwargs_initial["name"] = "Initial cycle"
+        kwargs_initial['name'] = "Initial cycle"
 
     if not "line" in kwargs_optimal:
-        kwargs_optimal["line"] = dict(color="crimson", width=10)
+        kwargs_optimal['line'] = dict(color="crimson", width=10)
     if not "name" in kwargs_optimal:
-        kwargs_optimal["name"] = "Optimal cycle"   
+        kwargs_optimal['name'] = "Optimal cycle"   
 
 
     if not "showlegend" in kwargs_surface:
-        kwargs_surface["showlegend"] = True
+        kwargs_surface['showlegend'] = True
     if not "opacity" in kwargs_surface:
-        kwargs_surface["opacity"] = 0.5
+        kwargs_surface['opacity'] = 0.5
     if not "color" in kwargs_surface:
-        kwargs_surface["color"] = "white"
+        kwargs_surface['color'] = "white"
     if not "name" in kwargs_surface:
-        kwargs_surface["name"] = "Surface between cycles"
+        kwargs_surface['name'] = "Surface between cycles"
 
     if not "mode" in kwargs_points:
-        kwargs_points["mode"] = "markers"
+        kwargs_points['mode'] = "markers"
     if not "marker" in kwargs_points:
-        kwargs_points["marker"] = dict(opacity=0.8, size=3, color=[point[1] for point in points], colorscale="Peach")
+        kwargs_points['marker'] = dict(opacity=0.8, size=3, color=[point[1] for point in points], colorscale="Peach")
     if not "opacity" in kwargs_points:
-        kwargs_points["opacity"] = 0.8
+        kwargs_points['opacity'] = 0.8
     if not "name" in kwargs_points:
-        kwargs_points["name"] = "Point cloud"
+        kwargs_points['name'] = "Point cloud"
 
     trace_edges_initial =   oat_python.plot.trace_3d_for_edges(
                                 edges=edges_initial,
@@ -697,13 +697,13 @@ def contrast_initial_and_optimal_cycles_in_3d(
                             )
     
     if not "title" in kwargs_layout:
-        kwargs_layout["title"] = dict(text="A cycle before and after optimization")
+        kwargs_layout['title'] = dict(text="A cycle before and after optimization")
     if not "template" in kwargs_layout:
-        kwargs_layout["template"] = "plotly_dark"
+        kwargs_layout['template'] = "plotly_dark"
     if not "height" in kwargs_layout:
-        kwargs_layout["height"] = 1000
+        kwargs_layout['height'] = 1000
     if not "width" in kwargs_layout:
-        kwargs_layout["width"] = 1200
+        kwargs_layout['width'] = 1200
 
     fig.update_layout( **kwargs_layout )
 
@@ -1272,7 +1272,7 @@ def trace_3d_for_triangles(triangles=[], points=[], **kwargs):
 
             - ``vertex_labels = sorted(list(set().union(*triangles)))``
             - ``vertex_labels = oat_python.simplex.vertices_incident_to_simplices(triangles)``
-            - (after creating the trace) ``vertex_labels = trace.meta["vertex_labels"]``
+            - (after creating the trace) ``vertex_labels = trace.meta['vertex_labels']``
 
     Technical background
     ^^^^^^^^^^^^^^^^^^^^^^^
@@ -1302,7 +1302,7 @@ def trace_3d_for_triangles(triangles=[], points=[], **kwargs):
 
     - place the set of all vertex labels into a list and sort it, e.g., ``vertex_labels = sorted(list(set().union(*triangles)))``.
     - call ``oat_python.simplex.vertices_incident_to_simplices(triangles)``
-    - (after creating the trace) look up ``trace.meta["vertex_labels"]``
+    - (after creating the trace) look up ``trace.meta['vertex_labels']``
 
     Any one of these methods will give you a list ``[v0, v1, ..., vN]``, where ``vi`` is the original label of the vertex
     that was relabeled as ``i``.  
@@ -1346,16 +1346,16 @@ def trace_3d_for_triangles(triangles=[], points=[], **kwargs):
         coordinates_as_rows =   coordinates_as_rows.reshape( 0, 3 ) 
     
     if "vertexcolor" in kwargs:
-        kwargs["vertexcolor"] = [ kwargs["vertexcolor"][v] for v in nvl2ovl ]    
+        kwargs['vertexcolor'] = [ kwargs['vertexcolor'][v] for v in nvl2ovl ]    
     if "intensity" in kwargs:
-        if not ( "intensitymode" in kwargs and kwargs["intensitymode"] == "cell" ):
-            kwargs["intensity"] = [ kwargs["intensity"][v] for v in nvl2ovl ]
+        if not ( "intensitymode" in kwargs and kwargs['intensitymode'] == "cell" ):
+            kwargs['intensity'] = [ kwargs['intensity'][v] for v in nvl2ovl ]
     if "text" in kwargs:
-        if not isinstance(kwargs["text"], str): # if text is a single string, don't try to index into it
-            kwargs["text"] = [ kwargs["text"][v] for v in nvl2ovl ]
+        if not isinstance(kwargs['text'], str): # if text is a single string, don't try to index into it
+            kwargs['text'] = [ kwargs['text'][v] for v in nvl2ovl ]
     if "hovertext" in kwargs:
-        if not isinstance(kwargs["hovertext"], str): # if hovertext is a single string, don't try to index into it
-            kwargs["hovertext"] = [ kwargs["hovertext"][v] for v in nvl2ovl ]
+        if not isinstance(kwargs['hovertext'], str): # if hovertext is a single string, don't try to index into it
+            kwargs['hovertext'] = [ kwargs['hovertext'][v] for v in nvl2ovl ]
     
 
     trace   =   go.Mesh3d(
