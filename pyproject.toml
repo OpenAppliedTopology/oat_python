@@ -27,6 +27,10 @@ dependencies        =   [
                             "scikit-learn", 
                             "scipy",
                             "tqdm",
+                            "sphinx",
+                            "sphinx_rtd_theme",
+                            "sphinx_gallery",
+                            "sphinx_autodoc_typehints",
                         ]  
 
 [tool.maturin]
