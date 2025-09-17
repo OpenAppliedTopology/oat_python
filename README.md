@@ -1,7 +1,3 @@
-# About this fork
-
-This is a fork of the [oat_python](https://github.com/OpenAppliedTopology/oat_python) repository. The fork is maintained by Pacific Northwest National Laboratory (PNNL), which is the lead contributor to the Open Applied Topology project.
-
 # Open Applied Topology
 
 [Open applied topology (OAT)](https://openappliedtopology.github.io) is a library for fast, user-friendly algebra and topology. OAT has 
