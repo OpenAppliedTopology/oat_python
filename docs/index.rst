@@ -5,7 +5,7 @@
 
 
 .. image:: _static/banner.png
-   :width: 100%
+   :width: 80%
    :align: center
    :alt: Project Banner
 

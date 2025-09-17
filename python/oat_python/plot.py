@@ -114,7 +114,7 @@ def persistence_diagram_guidelines( upper_limit ):
 
         traced, traceh = persistence_diagram_guidelines(1.0)
         fig = go.Figure([traced, traceh])
-        fig.show()
+        fig
     """
     traceh = go.Scatter(x=[0,upper_limit], y=[upper_limit,upper_limit], mode="lines")
     traceh.update( line=dict( dash="dot", color="black" ) )
@@ -165,7 +165,7 @@ def persistence_diagram( persistent_homology_dataframe, guideline_limit = None )
         fig     =   persistence_diagram(
                         persistent_homology_dataframe
                     )
-        fig.show()
+        fig
     """
     fig                         =   go.Figure( data=[] )
 
@@ -290,7 +290,7 @@ def barcode( persistent_homology_dataframe, guideline_limit = None ):
         fig     =   barcode(
                         persistent_homology_dataframe
                     )
-        fig.show()
+        fig
     """
     fig                         =   go.Figure( data=[] )
 
@@ -780,7 +780,7 @@ def vertex_embedding_for_networkx_graph(
         y = [coords[v][1] for v in G.nodes]
         fig = go.Figure(go.Scatter(x=x, y=y, mode="markers+text", text=list(G.nodes)))
         fig.update_layout(title="2D MDS Embedding of Graph Nodes")
-        fig.show()
+        fig
     """
 
     if method == "spring":
@@ -1573,7 +1573,7 @@ def wire_sphere_3d(x, y, z, radius, nlattitude, nlongitude):
             trace.update(legendgroup="sphere", showlegend=False)
         traces[0].update(showlegend=True, name="Wire Sphere")
         fig = go.Figure(traces)
-        fig.show()
+        fig
     """
 
     nlongitude = nlongitude + 1 # this corrects for the fact that we overlap 1 line
