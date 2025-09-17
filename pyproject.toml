@@ -32,10 +32,12 @@ dependencies        =   [
                             "sphinx_autodoc_typehints",
                         ]  
 
+[project.urls]
+"Documentation" = "https://oat-python.readthedocs.io"
+
 [tool.maturin]
 python-source = "python"
 module-name = "oat_python.core"   
-
 
 [tool.setuptools]
 package-dir = {"" = "python"}
