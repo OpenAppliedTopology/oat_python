@@ -51,7 +51,7 @@ points               =   oat.point_cloud.sphere_or_slice_spiral(n_points=8, nois
 trace               =   go.Scatter3d(x=points[:,0],y=points[:,1],z=points[:,2], mode="markers", marker=dict(opacity=1, size=4, color=points[:,2], colorscale="Aggrnyl"))
 fig                 =   go.Figure(data=trace)
 fig.update_layout(title=dict(text="Point cloud"), height=800,width=850) 
-fig.show()
+fig
 
 # %% [markdown]
 # Compute persistent homology
