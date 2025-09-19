@@ -137,6 +137,95 @@ pub trait IntoDataframeFormat where Self: Sized {
 
 
 //  =========================================================
+//  Vec< (WeightedSimplex, Bound) >
+//  =========================================================
+
+
+impl < 'py >IntoDataframeFormat for 
+        
+    Vec< ( WeightedSimplex< OrderedFloat<f64> >, Bound<'py, PyAny> ) >
+{
+    /// Returns a Pandas data frame with columns `simplex`, `filtration`, and `coefficient`
+    fn into_dataframe_format(&self, py: Python<'_>) -> PyResult<PyObject> {
+        let dict = PyDict::new(py);
+        let mut simplices = Vec::with_capacity(self.len());
+        for entry in self.iter() {
+            let simplex = entry.0.vertices();
+            let simplex: pyo3::Bound<'_, PyTuple> = PyTuple::new(py, simplex)?;
+            simplices.push(simplex);
+        }
+        dict.set_item( "simplex",     simplices)?;
+        dict.set_item( "filtration",  self.iter().map( |(s,_)| s.filtration().into_inner() ).collect_vec() )?;
+        dict.set_item( "coefficient", self.iter().map( |(_,z)| z.clone() ).collect_vec() )?;
+        let pandas = py.import("pandas").ok().unwrap();       
+        pandas.call_method("DataFrame", ( dict, ), None).map(Into::into)
+    }
+}
+
+
+
+
+
+//  =========================================================
+//  Vec< (WeightedSimplex, bool) >
+//  =========================================================
+
+
+impl < 'py >IntoDataframeFormat for 
+        
+    Vec< ( WeightedSimplex< OrderedFloat<f64> >, bool ) >
+{
+    /// Returns a Pandas data frame with columns `simplex`, `filtration`, and `coefficient`
+    fn into_dataframe_format(&self, py: Python<'_>) -> PyResult<PyObject> {
+        let dict = PyDict::new(py);
+        let mut simplices = Vec::with_capacity(self.len());
+        for entry in self.iter() {
+            let simplex = entry.0.vertices();
+            let simplex: pyo3::Bound<'_, PyTuple> = PyTuple::new(py, simplex)?;
+            simplices.push(simplex);
+        }
+        dict.set_item( "simplex",     simplices)?;
+        dict.set_item( "filtration",  self.iter().map( |(s,_)| s.filtration().into_inner() ).collect_vec() )?;
+        dict.set_item( "coefficient", self.iter().map( |(_,z)| z.clone() ).collect_vec() )?;
+        let pandas = py.import("pandas").ok().unwrap();       
+        pandas.call_method("DataFrame", ( dict, ), None).map(Into::into)
+    }
+}
+
+
+
+
+//  =========================================================
+//  Vec< (WeightedSimplex, bool) >
+//  =========================================================
+
+
+impl < 'py >IntoDataframeFormat for 
+        
+    Vec< ( WeightedSimplex< OrderedFloat<f64> >, isize ) >
+{
+    /// Returns a Pandas data frame with columns `simplex`, `filtration`, and `coefficient`
+    fn into_dataframe_format(&self, py: Python<'_>) -> PyResult<PyObject> {
+        let dict = PyDict::new(py);
+        let mut simplices = Vec::with_capacity(self.len());
+        for entry in self.iter() {
+            let simplex = entry.0.vertices();
+            let simplex: pyo3::Bound<'_, PyTuple> = PyTuple::new(py, simplex)?;
+            simplices.push(simplex);
+        }
+        dict.set_item( "simplex",     simplices)?;
+        dict.set_item( "filtration",  self.iter().map( |(s,_)| s.filtration().into_inner() ).collect_vec() )?;
+        dict.set_item( "coefficient", self.iter().map( |(_,z)| z.clone() ).collect_vec() )?;
+        let pandas = py.import("pandas").ok().unwrap();       
+        pandas.call_method("DataFrame", ( dict, ), None).map(Into::into)
+    }
+}
+
+
+
+
+
+//  =========================================================
 //  Vec< (WeightedSimplex, Ratio) >
 //  =========================================================
 

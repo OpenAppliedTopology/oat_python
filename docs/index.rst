@@ -19,9 +19,7 @@ is a library for fast, user-friendly algebra and topology. OAT has
   `oat_python <https://github.com/OpenAppliedTopology/oat_python>`__
 - a fast backend written in Rust, called
   `oat_rust <https://github.com/OpenAppliedTopology/oat_rust>`__
-- a variety of tutorials published as `jupyter
-  notebooks <https://openappliedtopology.github.io>`__
-
+  
 This page contains the user guide for
 `oat_python <https://github.com/OpenAppliedTopology/oat_python>`__.
 
@@ -125,6 +123,7 @@ Table of Contents
    sidebar
    glossary
    auto_examples/index
+   faq
   
 ..  auto_examples
 ..  auto_examples/index   
