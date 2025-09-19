@@ -675,17 +675,18 @@ impl VectorIndexTool{
     }
 
 
+
     /// Converts a linear combination of simplices into a dense array whose length equals the number of indices in the VectorIndexTool
     /// 
     /// # Arguments
     /// 
     /// - `chain`: a Pandas DataFrame containing columns `simplex` and `coefficient`. Other columns are ignored.
-    ///    Entries in the `coefficient` column should have `Frac` values.
+    ///    Entries in the `coefficient` column should have `Frac` or `float` values.
     ///    If the same simplex appears multiple times, the coefficients are summed.
     ///   
     /// # Returns
     /// 
-    /// A 1-dimensional numpy.ndarray with `Frac` values representing the dense array for the column vector, where the index corresponds to the row number in the submatrix.
+    /// A 1-dimensional numpy.ndarray with values representing the dense array for the column vector, where the index corresponds to the row number in the submatrix.
     /// 
     /// # Errors
     /// 
@@ -697,24 +698,75 @@ impl VectorIndexTool{
         )
         -> PyResult<pyo3::Bound<'py, pyo3::PyAny>> 
     {
-        let simplices           =   chain.get_item("simplex")?;
-        let simplices: Vec<Vec<u16>>               =   simplices.extract()?;
+        let simplices = chain.get_item("simplex")?;
+        let simplices: Vec<Vec<u16>> = simplices.extract()?;
 
-        let coefficients        =   chain.get_item("coefficient")?;
-        let coefficients: Vec<Ratio<isize>>        =   coefficients.extract()?;
+        let coefficients = chain.get_item("coefficient")?;
 
-        let mut dense                              =   vec![ Ratio::new(0, 1); self.indices.len() ]; 
-
-        for (simplex,coefficient) in simplices.iter().zip(coefficients.iter()) {
-            let index_number                         =   self.index_number_for_simplex(simplex.clone())?;
-            dense[ index_number ]                    +=  coefficient.clone();
+        // Try to extract as floats first
+        if let Ok(coeffs_float) = coefficients.extract::<Vec<f64>>() {
+            let mut dense = vec![0.0f64; self.indices.len()];
+            for (simplex, coefficient) in simplices.iter().zip(coeffs_float.iter()) {
+                let index_number = self.index_number_for_simplex(simplex.clone())?;
+                dense[index_number] += *coefficient;
+            }
+            let np = py.import("numpy")?;
+            let dense = np.call_method1("array", (dense,))?;
+            return Ok(dense);
         }
 
-        let np = py.import("numpy")?;
-        let dense = np.call_method1("array", (dense,))?;
+        // Otherwise, try to extract as fractions
+        if let Ok(coeffs_frac) = coefficients.extract::<Vec<Ratio<isize>>>() {
+            let mut dense = vec![Ratio::new(0, 1); self.indices.len()];
+            for (simplex, coefficient) in simplices.iter().zip(coeffs_frac.iter()) {
+                let index_number = self.index_number_for_simplex(simplex.clone())?;
+                dense[index_number] += coefficient.clone();
+            }
+            let np = py.import("numpy")?;
+            let dense = np.call_method1("array", (dense,))?;
+            return Ok(dense);
+        }
 
-        return Ok(dense)
+        // Otherwise, try to extract as integers
+        if let Ok(coeffs_int) = coefficients.extract::<Vec<i64>>() {
+            let mut dense = vec![0; self.indices.len()];
+            for (simplex, coefficient) in simplices.iter().zip(coeffs_int.iter()) {
+                let index_number = self.index_number_for_simplex(simplex.clone())?;
+                dense[index_number] += coefficient.clone();
+            }
+            let np = py.import("numpy")?;
+            let dense = np.call_method1("array", (dense,))?;
+            return Ok(dense);
+        }  
+
+        // Otherwise, try to extract as bools
+        if let Ok(coeffs_bool) = coefficients.extract::<Vec<bool>>() {
+            let mut dense = vec![false; self.indices.len()];
+            for (simplex, coefficient) in simplices.iter().zip(coeffs_bool.iter()) {
+                let index_number = self.index_number_for_simplex(simplex.clone())?;
+                dense[index_number] |= *coefficient;
+            }
+            let np = py.import("numpy")?;
+            let dense = np.call_method1("array", (dense,))?;
+            return Ok(dense);
+        }                
+
+        Err(pyo3::exceptions::PyTypeError::new_err(
+            "Could not extract coefficients as float, Fraction, integer, or bool types.",
+        ))
     }
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -737,33 +789,101 @@ impl VectorIndexTool{
     /// 
     /// Returns an error if the length of the input array does not match the number of rows in the submatrix.
     pub fn dataframe_for_dense_array<'py>(
-            &self,        
-            dense:       Vec< Ratio<isize> >, 
-            py:          Python<'py>,       
-        )
-        -> PyResult<PyObject> 
-    {
-        if dense.len() != self.indices.len() {
-            return Err(PyTypeError::new_err(format!(
-                "Length of input array {} does not match the number of rows {} in the submatrix.",
-                dense.len(),
-                self.indices.len()
-            )));
+        &self,
+        dense: &Bound<'py, PyAny>,
+        py: Python<'py>,
+    ) -> PyResult<PyObject> {
+        let len = self.indices.len();
+
+        // Try integers
+        if let Ok(dense_vec) = dense.extract::<Vec<isize>>() {
+            if dense_vec.len() != len {
+                return Err(PyTypeError::new_err(format!(
+                    "Length of input array {} does not match the number of rows {} in the submatrix.",
+                    dense_vec.len(),
+                    len
+                )));
+            }
+            let mut output = Vec::new();
+            for (index, value) in dense_vec.iter().enumerate() {
+                if *value != 0 {
+                    output.push((
+                        self.indices.element_for_ordinal(index),
+                        *value,
+                    ));
+                }
+            }
+            return output.into_dataframe_format(py);
         }
 
-        let mut output = Vec::new();
-        for (index, value) in dense.iter().enumerate() {
-            if ! value.is_zero() {
-                output.push( 
-                    (
+        // Try bools
+        if let Ok(dense_vec) = dense.extract::<Vec<bool>>() {
+            if dense_vec.len() != len {
+                return Err(PyTypeError::new_err(format!(
+                    "Length of input array {} does not match the number of rows {} in the submatrix.",
+                    dense_vec.len(),
+                    len
+                )));
+            }
+            let mut output = Vec::new();
+            for (index, value) in dense_vec.iter().enumerate() {
+                if *value {
+                    output.push((
+                        self.indices.element_for_ordinal(index),
+                        *value,
+                    ));
+                }
+            }
+            return output.into_dataframe_format(py);
+        }        
+
+        // Try fractions (Ratio<isize>)
+        if let Ok(dense_vec) = dense.extract::<Vec<Ratio<isize>>>() {
+            if dense_vec.len() != len {
+                return Err(PyTypeError::new_err(format!(
+                    "Length of input array {} does not match the number of rows {} in the submatrix.",
+                    dense_vec.len(),
+                    len
+                )));
+            }
+            let mut output = Vec::new();
+            for (index, value) in dense_vec.iter().enumerate() {
+                if !value.is_zero() {
+                    output.push((
                         self.indices.element_for_ordinal(index),
                         value.clone(),
-                    )
-                )
+                    ));
+                }
             }
-        }
-        output.into_dataframe_format(py)
-    }    
+            return output.into_dataframe_format(py);
+        }        
+
+
+        // Try floats 
+        if let Ok(dense_vec) = dense.extract::<Vec<f64>>() {
+            if dense_vec.len() != len {
+                return Err(PyTypeError::new_err(format!(
+                    "Length of input array {} does not match the number of rows {} in the submatrix.",
+                    dense_vec.len(),
+                    len
+                )));
+            }
+            let mut output = Vec::new();
+            for (index, value) in dense_vec.iter().enumerate() {
+                if *value != 0.0 {
+                    output.push((
+                        self.indices.element_for_ordinal(index),
+                        *value,
+                    ));
+                }
+            }
+            return output.into_dataframe_format(py);
+        }        
+
+        Err(PyTypeError::new_err(
+            "Could not extract dense array as float, Fraction, integer, or bool types.",
+        ))
+    }
 
 
 
@@ -1204,7 +1324,7 @@ impl SubmatrixIndexTool{
     /// 
     /// # Arguments
     /// 
-    /// - `chain`: a Pandas DataFrame containing columns `simplex` and `coefficient`. Other columns are ignored.
+    /// - `dataframe`: a Pandas DataFrame containing columns `simplex` and `coefficient`. Other columns are ignored.
     ///    Entries in the `coefficient` column should have `Frac` values.
     ///    If the same simplex appears multiple times, the coefficients are summed.
     ///   
@@ -1217,28 +1337,68 @@ impl SubmatrixIndexTool{
     /// Returns an error if the input DataFrame does not contain the required columns, or if the simplices are not valid in the Vietoris-Rips complex.
     pub fn dense_array_for_column_vector_dataframe<'py>(
             &self,        
-            chain:       &Bound<'py, PyAny>, 
+            dataframe:   &Bound<'py, PyAny>, 
             py:          Python<'py>,       
         )
         -> PyResult<pyo3::Bound<'py, pyo3::PyAny>> 
     {
-        let simplices           =   chain.get_item("simplex")?;
-        let simplices: Vec<Vec<u16>>            =   simplices.extract()?;
+        let simplices = dataframe.get_item("simplex")?;
+        let simplices: Vec<Vec<u16>> = simplices.extract()?;
 
-        let coefficients        =   chain.get_item("coefficient")?;
-        let coefficients: Vec<Ratio<isize>>        =   coefficients.extract()?;
+        let coefficients = dataframe.get_item("coefficient")?;
 
-        let mut dense                              =   vec![ Ratio::new(0, 1); self.number_of_rows() ]; 
 
-        for (simplex,coefficient) in simplices.iter().zip(coefficients.iter()) {
-            let row_number                         =   self.submatrix_row_number_for_simplex(simplex.clone())?;
-            dense[ row_number ]                    +=  coefficient.clone();
+        // Try fractions (Ratio<isize>)
+        if let Ok(coeffs_frac) = coefficients.extract::<Vec<Ratio<isize>>>() {
+            let mut dense = vec![Ratio::new(0, 1); self.number_of_rows()];
+            for (simplex, coefficient) in simplices.iter().zip(coeffs_frac.iter()) {
+                let row_number = self.submatrix_row_number_for_simplex(simplex.clone())?;
+                dense[row_number] += coefficient.clone();
+            }
+            let np = py.import("numpy")?;
+            let dense = np.call_method1("array", (dense,))?;
+            return Ok(dense);
         }
 
-        let np = py.import("numpy")?;
-        let dense = np.call_method1("array", (dense,))?;
+        // Try integers
+        if let Ok(coeffs_int) = coefficients.extract::<Vec<isize>>() {
+            let mut dense = vec![0isize; self.number_of_rows()];
+            for (simplex, coefficient) in simplices.iter().zip(coeffs_int.iter()) {
+                let row_number = self.submatrix_row_number_for_simplex(simplex.clone())?;
+                dense[row_number] += *coefficient;
+            }
+            let np = py.import("numpy")?;
+            let dense = np.call_method1("array", (dense,))?;
+            return Ok(dense);
+        }
 
-        return Ok(dense)
+        // Try bools
+        if let Ok(coeffs_bool) = coefficients.extract::<Vec<bool>>() {
+            let mut dense = vec![false; self.number_of_rows()];
+            for (simplex, coefficient) in simplices.iter().zip(coeffs_bool.iter()) {
+                let row_number = self.submatrix_row_number_for_simplex(simplex.clone())?;
+                dense[row_number] |= *coefficient;
+            }
+            let np = py.import("numpy")?;
+            let dense = np.call_method1("array", (dense,))?;
+            return Ok(dense);
+        }        
+
+        // Try floats
+        if let Ok(coeffs_float) = coefficients.extract::<Vec<f64>>() {
+            let mut dense = vec![0.0f64; self.number_of_rows()];
+            for (simplex, coefficient) in simplices.iter().zip(coeffs_float.iter()) {
+                let row_number = self.submatrix_row_number_for_simplex(simplex.clone())?;
+                dense[row_number] += *coefficient;
+            }
+            let np = py.import("numpy")?;
+            let dense = np.call_method1("array", (dense,))?;
+            return Ok(dense);
+        }        
+
+        Err(pyo3::exceptions::PyTypeError::new_err(
+            "Could not extract coefficients as float, Fraction, integer, or bool types.",
+        ))
     }
 
 
@@ -1248,47 +1408,60 @@ impl SubmatrixIndexTool{
     /// 
     /// # Arguments
     /// 
-    /// - `chain`: a list of `Frac` values representing the dense array for the column vector, where the index corresponds to the row number in the submatrix.
+    /// - `dense_array`: a list of values `[v0 .. vn]` corresponding to the sequence of row indices `[r0 .. rn]` contained in the :class:`SubmatrixIndexTool`.
     ///   
     /// # Returns
     /// 
     /// A Pandas DataFrame with columns `simplex`, `filtration`, and `coefficient`, where `simplex` is a tuple of vertices and `coefficient` is the corresponding coefficient.
     /// 
-    /// Concretely, if `dense[ i ] = v`, then the output will contain a row with `simplex = self.weighted_simplex_for_submatrix_row_number( i )` and `coefficient = v`.
+    /// Concretely, if `dense_array[ i ] = v`, then the output will contain a row with `simplex = self.weighted_simplex_for_submatrix_row_number( i )` and `coefficient = v`.
     /// 
-    /// Zero coefficients are ignored.
+    /// Zero coefficients are ignored, so the dataframe will typically have fewer rows than `len(dense_array)`.
     /// 
     /// # Errors
     /// 
     /// Returns an error if the length of the input array does not match the number of rows in the submatrix.
     pub fn column_vector_dataframe_for_dense_array<'py>(
             &self,        
-            dense:       Vec< Ratio<isize> >, 
-            py:          Python<'py>,       
+            dense_array:        Vec<Bound<'py, PyAny>>, 
+            py:                 Python<'py>,       
         )
         -> PyResult<PyObject> 
     {
-        if dense.len() != self.number_of_rows() {
+        if dense_array.len() != self.number_of_rows() {
             return Err(PyTypeError::new_err(format!(
-                "Length of input array {} does not match the number of rows {} in the submatrix.",
-                dense.len(),
+                "Length of input array ({}) does not match the number of rows ({}) in the submatrix.",
+                dense_array.len(),
                 self.number_of_rows()
             )));
         }
 
-        let mut output = Vec::new();
-        for (index, value) in dense.iter().enumerate() {
-            if ! value.is_zero() {
+        let mut output = Vec::with_capacity(dense_array.len());
+        
+        // iterate through the dense array, checking truthiness of each entry
+        for (index, value) in dense_array.into_iter().enumerate() {
+            let is_nonzero = match value.is_truthy() {
+                Ok(b) => b,
+                Err(e) => {
+                    return Err(PyTypeError::new_err(format!(
+                        "Could not evaluate truthiness of value at index {}: {}. \
+                        Please ensure all entries in the input vector are valid Python objects that can be evaluated as truthy (i.e., support __bool__ or __len__). \
+                        This is required to identify and skip zero coefficients.",
+                        index, e
+                    )));
+                },
+            };
+            if is_nonzero {
                 output.push( 
                     (
                         self.row_indices.element_for_ordinal(index),
-                        value.clone(),
+                        value,
                     )
                 )
             }
         }
         output.into_dataframe_format(py)
-    }    
+    }
 
 
 
@@ -1303,7 +1476,7 @@ impl SubmatrixIndexTool{
     /// 
     /// # Arguments
     /// 
-    /// - `chain`: a Pandas DataFrame containing columns `simplex` and `coefficient`. Other columns are ignored.
+    /// - `dataframe`: a Pandas DataFrame containing columns `simplex` and `coefficient`. Other columns are ignored.
     ///    Entries in the `coefficient` column should have `Frac` values.
     ///    If the same simplex appears multiple times, the coefficients are summed.
     ///   
@@ -1316,69 +1489,117 @@ impl SubmatrixIndexTool{
     /// Returns an error if the input DataFrame does not contain the required columns, or if the simplices are not valid in the Vietoris-Rips complex.
     pub fn dense_array_for_row_vector_dataframe<'py>(
             &self,        
-            chain:       &Bound<'py, PyAny>, 
-            py:          Python<'py>,       
+            dataframe:      &Bound<'py, PyAny>, 
+            py:             Python<'py>,       
         )
         -> PyResult<pyo3::Bound<'py, pyo3::PyAny>> 
     {
-        let simplices           =   chain.get_item("simplex")?;
-        let simplices: Vec<Vec<u16>>            =   simplices.extract()?;
+        let simplices = dataframe.get_item("simplex")?;
+        let simplices: Vec<Vec<u16>> = simplices.extract()?;
 
-        let coefficients        =   chain.get_item("coefficient")?;
-        let coefficients: Vec<Ratio<isize>>        =   coefficients.extract()?;
+        let coefficients = dataframe.get_item("coefficient")?;
 
-        let mut dense                              =   vec![ Ratio::new(0, 1); self.number_of_columns() ]; 
-
-        for (simplex,coefficient) in simplices.iter().zip(coefficients.iter()) {
-            let column_number                         =   self.submatrix_column_number_for_simplex(simplex.clone())?;
-            dense[ column_number ]                    +=  coefficient.clone();
+        // Try integers
+        if let Ok(coeffs_int) = coefficients.extract::<Vec<isize>>() {
+            let mut dense = vec![0isize; self.number_of_columns()];
+            for (simplex, coefficient) in simplices.iter().zip(coeffs_int.iter()) {
+                let column_number = self.submatrix_column_number_for_simplex(simplex.clone())?;
+                dense[column_number] += *coefficient;
+            }
+            let np = py.import("numpy")?;
+            let dense = np.call_method1("array", (dense,))?;
+            return Ok(dense);
         }
 
-        let np = py.import("numpy")?;
-        let dense = np.call_method1("array", (dense,))?;
+        // Try bools
+        if let Ok(coeffs_bool) = coefficients.extract::<Vec<bool>>() {
+            let mut dense = vec![false; self.number_of_columns()];
+            for (simplex, coefficient) in simplices.iter().zip(coeffs_bool.iter()) {
+                let column_number = self.submatrix_column_number_for_simplex(simplex.clone())?;
+                dense[column_number] |= *coefficient;
+            }
+            let np = py.import("numpy")?;
+            let dense = np.call_method1("array", (dense,))?;
+            return Ok(dense);
+        }        
 
-        return Ok(dense)
+        // Try fractions (Ratio<isize>)
+        if let Ok(coeffs_frac) = coefficients.extract::<Vec<Ratio<isize>>>() {
+            let mut dense = vec![Ratio::new(0, 1); self.number_of_columns()];
+            for (simplex, coefficient) in simplices.iter().zip(coeffs_frac.iter()) {
+                let column_number = self.submatrix_column_number_for_simplex(simplex.clone())?;
+                dense[column_number] += coefficient.clone();
+            }
+            let np = py.import("numpy")?;
+            let dense = np.call_method1("array", (dense,))?;
+            return Ok(dense);
+        }        
+
+        // Try floats
+        if let Ok(coeffs_float) = coefficients.extract::<Vec<f64>>() {
+            let mut dense = vec![0.0f64; self.number_of_columns()];
+            for (simplex, coefficient) in simplices.iter().zip(coeffs_float.iter()) {
+                let column_number = self.submatrix_column_number_for_simplex(simplex.clone())?;
+                dense[column_number] += *coefficient;
+            }
+            let np = py.import("numpy")?;
+            let dense = np.call_method1("array", (dense,))?;
+            return Ok(dense);
+        }        
+
+        Err(pyo3::exceptions::PyTypeError::new_err(
+            "Could not extract coefficients as float, Fraction, integer, or bool types.",
+        ))
     }
 
 
 
-
-    /// Converts a dense numpy array or list into a linear combination of simplices represented by a Pandas DataFrame
+    /// Converts a dense numpy array or list (with length equal to the number of columns of the submatrix) into a linear combination of simplices represented by a Pandas DataFrame
     /// 
     /// # Arguments
     /// 
-    /// - `chain`: a list of `Ratio<isize>` representing the dense array for the column vector, where the index corresponds to the row number in the submatrix.
+    /// - `dense_array`: a list of values `[v0 .. vn]` corresponding to the sequence of column indices `[r0 .. rn]` contained in the :class:`SubmatrixIndexTool`.
     ///   
     /// # Returns
     /// 
     /// A Pandas DataFrame with columns `simplex`, `filtration`, and `coefficient`, where `simplex` is a tuple of vertices and `coefficient` is the corresponding coefficient.
     /// 
-    /// Concretely, if `dense[ i ] = v`, then the output will contain a row with `simplex = self.weighted_simplex_for_submatrix_column_number( i )` and `coefficient = v`.
+    /// Concretely, if `dense_array[ i ] = v`, then the output will contain a row with `simplex = self.weighted_simplex_for_submatrix_column_number( i )` and `coefficient = v`.
     /// 
-    /// 
-    /// Zero coefficients are ignored.
+    /// Zero coefficients are ignored, so the dataframe will typically have fewer columns than `len(dense_array)`.
     /// 
     /// # Errors
     /// 
-    /// Returns an error if the length of the input array does not match the number of rows in the submatrix.
+    /// Returns an error if the length of the input array does not match the number of columns in the submatrix.
     pub fn row_vector_dataframe_for_dense_array<'py>(
             &self,        
-            dense:       Vec< Ratio<isize> >, 
-            py:          Python<'py>,       
+            dense_array:    Vec< Bound<'py, PyAny> >, 
+            py:             Python<'py>,       
         )
         -> PyResult<PyObject> 
     {
-        if dense.len() != self.number_of_columns() {
+        if dense_array.len() != self.number_of_columns() {
             return Err(PyTypeError::new_err(format!(
                 "Length of input array {} does not match the number of columns {} in the submatrix.",
-                dense.len(),
+                dense_array.len(),
                 self.number_of_columns()
             )));
         }
 
         let mut output = Vec::new();
-        for (index, value) in dense.iter().enumerate() {
-            if ! value.is_zero() {
+        for (index, value) in dense_array.iter().enumerate() {
+            let is_nonzero = match value.is_truthy() {
+                Ok(b) => b,
+                Err(e) => {
+                    return Err(PyTypeError::new_err(format!(
+                        "Could not evaluate truthiness of value at index {}: {}. \
+                        Please ensure all entries in the input vector are valid Python objects that can be evaluated as truthy (i.e., support __bool__ or __len__). \
+                        This is required to identify and skip zero coefficients.",
+                        index, e
+                    )));
+                },
+            };
+            if is_nonzero {
                 output.push( 
                     (
                         self.column_indices.element_for_ordinal(index),

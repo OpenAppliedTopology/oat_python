@@ -19,7 +19,7 @@ install and use the modified version, check out the
 
 
 
-API Reference
+API
 =============
   
 

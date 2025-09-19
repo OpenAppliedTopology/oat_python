@@ -2,7 +2,7 @@
 """
 .. _dowker_optimize_cycles_gallery:
 
-Optimial cycles
+Optimal cycles
 =========================================
 
 In this example we will
