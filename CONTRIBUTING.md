@@ -195,7 +195,9 @@ Here are the [steps to creating an issue on github](https://docs.github.com/en/i
 **Request a feature**
 - Search for related issues on Github. You may also want to search for all issues with the `enhance` tag to see a list of all feature requests.
 - If the feature you'd like doesn't already appear, create an issue and describe what you're looking for. It can be helpful to indicate whether you plan to work on developing this feature yourself, or would be open to working together with others to implement it.
-- Use the `enhance` tag!
+- Make sure to
+  - Use the `enhance` tag!
+  - Star issues you find important!
 
 
 **Report an issue**
