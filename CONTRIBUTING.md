@@ -16,10 +16,10 @@ Here's some information to get started.
 - [Code of conduct](#code-of-conduct)
 - [Get help](#get-help)  
 - [Install](#install)
-- [Access documnetation](#access-documnetation)
+- [Access documnetation](#access-documentation)
 - [Project layout](#project-layout)
-- [How-to](#general-tips)
-  - [Report an issue or request a feature](#report-an-issue-or-requiest-a-feature)
+- [How-to](#how-to)
+  - [Report an issue or request a feature](#report-an-issue-or-request-a-feature)
   - [Contribute new code](#contribute-new-code)  
   - [Run unit tests](#run-unit-tests)
 - [Style guide](#style-guide)
@@ -192,15 +192,22 @@ The world of open source is wide; it can be a lot to take in!  If this is your f
 
 Here are the [steps to creating an issue on github](https://docs.github.com/en/issues/tracking-your-work-with-issues/quickstart)
 
-- search for related issues on Github. You might be able to get answer without the hassle of creating an issue
-- describe the current behavior and explain which behavior you expected to see instead and why. At this point you can also tell which alternatives do not work for you.  
-  - (if applicable) provide error messages
-  - (if applicable) provide a step by step description of the problem; if possible include code that others can use to reproduce it
+**Request a feature**
+- Search for related issues on Github. You may also want to search for all issues with the `enhance` tag to see a list of all feature requests.
+- If the feature you'd like doesn't already appear, create an issue and describe what you're looking for. It can be helpful to indicate whether you plan to work on developing this feature yourself, or would be open to working together with others to implement it.
+- Use the `enhance` tag!
+
+
+**Report an issue**
+- Search for related issues on Github. You might be able to get answer without the hassle of creating an issue.
+- Describe the current behavior and explain which behavior you expected to see instead and why. At this point you can also describe any alternatives you've considered, and why they do not work.
+  - (If applicable) provide error messages
+  - (If applicable) provide a step by step description of the problem; if possible include code that others can use to reproduce it
   - You may want to [include screenshots and animated GIFs](https://www.cockos.com/licecap/) which help you demonstrate the steps or point out the part which the suggestion is related to. You can use [this tool](https://www.cockos.com/licecap/) to record GIFs on macOS and Windows, and [this tool](https://github.com/colinkeenan/silentcast) or [this tool](https://github.com/GNOME/byzanz) on Linux.
-  - provide clear, specific title
-  - include details on your setup (operating system, python version, etc.)
-- use the most recent version of this library and the source language (e.g. Rust); that fixes a lot of problems  
-- here are [more details on getting the most out of issue reporting!](https://marker.io/blog/how-to-write-bug-report)
+  - Provide clear, specific title
+  - Include details on your setup (operating system, python version, etc.)
+- Use the most recent version of this library and the source language (e.g. Rust); that fixes a lot of problems  
+- Here are [more details on getting the most out of issue reporting!](https://marker.io/blog/how-to-write-bug-report)
 
 ## Contribute new code
 
