@@ -535,6 +535,7 @@ def contrast_initial_and_optimal_cycles_in_3d(
         boundary_matrix_decomposition, 
         birth_simplex, 
         points, 
+        problem_type="preserve PH basis",
         kwargs_initial=dict(), 
         kwargs_optimal=dict(), 
         kwargs_surface=dict(),
@@ -554,6 +555,10 @@ def contrast_initial_and_optimal_cycles_in_3d(
     points : indexable
         An object that maps integer vertex labels to 3D coordinates, e.g., a dictionary of tuples,
         a list of coordinate tuples, or a NumPy array of shape (n_vertices, 3).
+
+    problem_type : str, optional
+        Same as for the method `optimize_cyle` for a :class:`oat_python.core.vietoris_rips.BoundaryMatrixDecomposition`.
+        The available options are ``"preserve PH basis"`` (default) and ``"preserve homology class"``
 
     kwargs_initial : dict, optional
         Additional keyword arguments to pass to the Plot for the initial cycle.
@@ -621,7 +626,7 @@ def contrast_initial_and_optimal_cycles_in_3d(
 
     optimal_cycle_data      =   boundary_matrix_decomposition.optimize_cycle(
                                     birth_simplex                   =   birth_simplex, 
-                                    problem_type                    =   "preserve PH basis",
+                                    problem_type                    =   problem_type,
                                     verbose                         =   False,
                                 )    
     

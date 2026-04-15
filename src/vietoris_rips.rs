@@ -4642,14 +4642,15 @@ impl DifferentialUmatchVietorisRipsPython{
         let column_indices = match problem_type.unwrap_or("preserve PH basis") {
             "preserve homology class"    =>  {
                 self.differential_umatch
-                    .boundary_space_indices() // indices of all boundary vectors in the differential COBM
-                    .into_iter()
-                    .filter(
-                        |x| 
-                        ( x.dimension()==dimension )
+                    .generalized_matching_matrix() // indices of all boundary vectors in the differential COBM
+                    .iter_index_pairs()
+                    .filter( // take only indices of ..
+                        |(x,y)| 
+                        ( x.dimension()==dimension ) // correct dimension
                         && 
-                        ( x.filtration() <= diam )
+                        ( y.filtration() <= diam ) // correspond to boundaries at or before the birth of the cycle of interest
                     ) // of appropriate dimension    
+                    .map(|(x,y)| x.clone())
                     .collect_vec()            
             }     
             "preserve PH basis"    =>  {
@@ -4851,6 +4852,149 @@ impl DifferentialUmatchVietorisRipsPython{
 
         return Ok(dict)
     }        
+
+
+
+
+    /// Similar to [DifferentialUmatchVietorisRipsPython::optimize_cycle], but builds the linear program with columns of the boundary matrix
+    /// 
+    /// - This method only solves the "preserve homology class" problem described in the documentation for [DifferentialUmatchVietorisRipsPython::optimize_cycle].
+    /// - The inputs and outputs have the same descriptions, only the implementation differs.
+    /// - This method is primarily intended for experimental comparison with the equivalent method in [DifferentialUmatchVietorisRipsPython::optimize_cycle].
+    ///   Once a clear winner is determined, in terms of performance, this method should be absorbed back into that method.
+    #[pyo3(signature = (birth_simplex, verbose=true))]
+    pub fn optimize_cycle_with_boundary_matrix_columns< 'py >( 
+                &self,
+                birth_simplex:                      Vec< u16 >,
+                verbose:                            bool,
+                py: Python< 'py >,
+            ) -> PyResult<PyObject> { // MinimalCyclePyWeightedSimplexRational {
+
+        // inputs
+        let matching                  =   self.differential_umatch.generalized_matching_matrix();        
+        let ring_operator             =   self.differential_umatch.ring_operator();
+        
+        // matrix a, vector c, and the dimension function
+        let dim_fn = |x: &WeightedSimplex<FiltrationValue> | x.dimension() as isize;
+        let obj_fn = |x: &WeightedSimplex<FiltrationValue> | x.filtration().into_inner(); 
+        let a = |k: &WeightedSimplex<FiltrationValue>| self.differential_umatch.boundary_matrix().column( &k ); 
+             
+        // column b
+        let diam = self.differential_umatch.boundary_matrix().filtration_value_for_clique(&birth_simplex).unwrap();
+        let birth_column_index = WeightedSimplex{ vertices: birth_simplex.clone(), weight: diam };
+        let dimension = birth_column_index.dimension();
+        let b = self.differential_umatch.differential_comb().column( &birth_column_index );
+
+        let column_indices = 
+                self.differential_umatch
+                    .generalized_matching_matrix()
+                    .matched_column_indices_in_sequence()
+                    .iter()
+                    .filter(
+                        |x| 
+                        ( x.dimension()==dimension+1 )
+                        && 
+                        ( x.filtration() <= diam )
+                    ) // of appropriate dimension    
+                    .cloned()
+                    .collect_vec();
+
+        // function to turn floats into rationals
+        let to_ratio = |x: f64| -> Ratio<isize> { 
+            let frac    =   Ratio::<isize>::approximate_float(x);
+            if frac == None { println!("unconvertible float: {:?}", x); }
+            frac.unwrap()
+        };
+
+        // function to change R-linear combination to a Q-linear combination
+        let order_operator = self.differential_umatch.boundary_matrix().order_operator_for_column_entries();
+        let format_chain = |x: Vec<_>| {
+            let mut r = x
+                .into_iter()
+                .map(|(k,v): (WeightedSimplex<_>,f64) | (k,to_ratio(v)))
+                .collect_vec();
+            r.sort_by( |a,b| 
+                order_operator.judge_cmp(a, b) 
+            );
+            r
+        };
+
+
+        // solve
+        let optimized = oat_rust::utilities::optimization::minimize_l1_try_gurobi(
+            a, 
+            b, 
+            obj_fn, 
+            column_indices.clone(), 
+            verbose
+        ).unwrap();         
+        
+        // optimal solution data
+        let x                           =     format_chain( optimized.x().clone() );       
+        let cycle_optimal               =     format_chain( optimized.y().clone() );
+        let cycle_initial               =     optimized.b().clone();        
+
+        let dict = PyDict::new(py);
+
+        // row labels
+        dict.set_item(
+            "variable", 
+            vec![
+                "initial cycle", 
+                "optimal_cycle", 
+                "surface_between_cycles",
+                "time_to_formulate_the_problem",
+                "time_to_solve_the_problem",
+            ]
+        )?;
+
+        // objective costs
+        dict.set_item(
+            "cost", 
+            vec![ 
+                Some(optimized.cost_b().clone()), 
+                Some(optimized.cost_y().clone()), 
+                None,
+                Some(optimized.construction_time),
+                Some(optimized.solve_time),
+            ] 
+        )?; 
+
+        // number of nonzero entries per vector       
+        dict.set_item(
+            "num_nonzero_coefficients", 
+            vec![ 
+                Some(cycle_initial.len()), 
+                Some(cycle_optimal.len()), 
+                Some(x.len()),
+                None,
+                None,
+            ] 
+        )?;
+
+        // vectors
+        dict.set_item(
+            "chain", 
+            vec![ 
+                Some(cycle_initial.into_dataframe_format(py).ok()), 
+                Some(cycle_optimal.into_dataframe_format(py).ok()), 
+                Some(x.into_dataframe_format(py).ok()),
+                None,
+                None,
+                ] 
+        )?;   
+
+        let pandas = py.import("pandas")?;       
+        let dict = pandas.call_method("DataFrame", ( dict, ), None)
+            .map(Into::< Py<PyAny> >::into)?;
+        let kwarg = vec![("inplace", true)].into_py_dict(py)?;        
+        dict.call_method( py, "set_index", ( "variable", ), Some(&kwarg))?;        
+
+        return Ok(dict)
+    }        
+
+
+
 
 
 

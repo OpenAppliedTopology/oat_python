@@ -1,3 +1,9 @@
+#-----------------------------------------------------
+#   LOCAL SCRATCH FOLDER
+#-----------------------------------------------------
+
+# Developers can place files here, which they do not wish to track
+_scratch
 
 #-----------------------------------------------------
 #   GENERAL RUST IGNORES
