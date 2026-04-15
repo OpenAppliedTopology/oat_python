@@ -4856,17 +4856,34 @@ impl DifferentialUmatchVietorisRipsPython{
 
 
 
-    /// Similar to [DifferentialUmatchVietorisRipsPython::optimize_cycle], but builds the linear program with columns of the boundary matrix
+    /// Similar to the ``optimize_cycle`` method, but builds the linear program with columns of the boundary matrix
     /// 
-    /// - This method only solves the "preserve homology class" problem described in the documentation for [DifferentialUmatchVietorisRipsPython::optimize_cycle].
-    /// - The inputs and outputs have the same descriptions, only the implementation differs.
-    /// - This method is primarily intended for experimental comparison with the equivalent method in [DifferentialUmatchVietorisRipsPython::optimize_cycle].
+    /// # Similarities with ``optimize_cycle``
+    /// 
+    /// - Any arguments that share the same name have the same interpretation.
+    /// - Calling ``self.optimize_cycle_with_boundary_matrix_columns( birth_simplex )`` is equivalent
+    ///   to calling ``self.optimize_cycle( birth_simplex, problem_type="preserve homology class" )```
+    /// 
+    /// # Differences with ``optimize_cycle``
+    /// 
+    /// - Lost features: this method cannot implement the algorithm for ``problem_type = "preserve PH basis"`` which is available for ``optimize_cycle``.
+    /// - Added features: this method has an optional keyword argument ``max_filtration``. The linear program
+    ///   we solve will be ``minimize L1_norm( Ax + b)`` where ``A`` is a matrix obtained by selecting a
+    ///   linearly independent set of columns from the boundary matrix ``D`` which span the space of boundaries
+    ///   for the filtered chain complex at filtration parameter ``max_filtration``.
+    ///   
+    ///   The default value for this parameter is the filtration value of the birth simplex.
+    /// 
+    /// # Usage and software design
+    /// 
+    /// This method is primarily intended for experimental comparison with the equivalent method in [DifferentialUmatchVietorisRipsPython::optimize_cycle].
     ///   Once a clear winner is determined, in terms of performance, this method should be absorbed back into that method.
-    #[pyo3(signature = (birth_simplex, verbose=true))]
+    #[pyo3(signature = (birth_simplex, max_filtration=None, verbose=true, ))]
     pub fn optimize_cycle_with_boundary_matrix_columns< 'py >( 
                 &self,
                 birth_simplex:                      Vec< u16 >,
-                verbose:                            bool,
+                max_filtration:                     Option< f64 >,
+                verbose:                            bool,                
                 py: Python< 'py >,
             ) -> PyResult<PyObject> { // MinimalCyclePyWeightedSimplexRational {
 
@@ -4885,16 +4902,17 @@ impl DifferentialUmatchVietorisRipsPython{
         let dimension = birth_column_index.dimension();
         let b = self.differential_umatch.differential_comb().column( &birth_column_index );
 
+        // column indices of the constraint matrix (a basis of columns with filtration value <= max_filtration)
+        let max_filtration = max_filtration.map(|x| OrderedFloat(x)).unwrap_or( diam );
         let column_indices = 
-                self.differential_umatch
-                    .generalized_matching_matrix()
+                matching
                     .matched_column_indices_in_sequence()
                     .iter()
                     .filter(
                         |x| 
                         ( x.dimension()==dimension+1 )
                         && 
-                        ( x.filtration() <= diam )
+                        ( x.filtration() <= max_filtration )
                     ) // of appropriate dimension    
                     .cloned()
                     .collect_vec();
