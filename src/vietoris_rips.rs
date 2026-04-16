@@ -1,7 +1,8 @@
 //!  Filtered clique (Vietoris-Rips) complexes
 
 use derive_getters::Dissolve;
-use num::Signed;
+use num::{Signed, ToPrimitive};
+use num::traits::Inv;
 use oat_rust::algebra::chain_complexes::ChainComplex;
 use oat_rust::algebra::matrices::operations::umatch::row_major::{self, Umatch};
 use oat_rust::algebra::matrices::types::transpose::OrderAntiTranspose;
@@ -25,7 +26,7 @@ use oat_rust::algebra::matrices::query::{MatrixAlgebra, MatrixOracle};
 use oat_rust::algebra::rings::traits::{SemiringOperations, RingOperations, DivisionRingOperations};
 use oat_rust::algebra::rings::types::native::{FieldFloat64, FieldRationalSize, RingOperatorForNativeRustNumberType};
 use oat_rust::utilities::iterators::general::{RequireStrictAscent, RequireStrictAscentWithPanic};
-use oat_rust::utilities::order::{is_sorted_strictly, JudgePartialOrder, ReverseOrder};
+use oat_rust::utilities::order::{self, JudgePartialOrder, ReverseOrder, is_sorted_strictly};
 use oat_rust::utilities::order::{OrderOperatorAuto, OrderOperatorByKey, OrderOperatorByKeyCustom, IntoReverseOrder};
 use oat_rust::algebra::vectors::operations::VectorOperations;
 
@@ -4472,7 +4473,7 @@ impl DifferentialUmatchVietorisRipsPython{
 
     //     // formatting
     //     let to_ratio = |x: f64| -> Ratio<isize> { Ratio::<isize>::approximate_float(x).unwrap() };
-    //     let format_chain = |x: Vec<_>| {
+    //     let to_rational_vec = |x: Vec<_>| {
     //         let mut r = x
     //             .into_iter()
     //             .map(|(k,v): (WeightedSimplex<_>,f64) | (k,to_ratio(v)))
@@ -4483,9 +4484,9 @@ impl DifferentialUmatchVietorisRipsPython{
     //     };
         
     //     // optimal solution data
-    //     let x =     format_chain( optimized.x().clone() );    
+    //     let x =     to_rational_vec( optimized.x().clone() );    
     //     println!("{:?}", &x);    
-    //     let cycle_optimal =     format_chain( optimized.y().clone() );
+    //     let cycle_optimal =     to_rational_vec( optimized.y().clone() );
     //     let cycle_initial =     optimized.b().clone();        
 
 
@@ -4615,18 +4616,22 @@ impl DifferentialUmatchVietorisRipsPython{
     /// - [Obayashi, Tightest representative cycle of a generator in persistent homology](https://epubs.siam.org/doi/10.1137/17M1159439)
     /// - [Minimal Cycle Representatives in Persistent Homology Using Linear Programming: An Empirical Study With User’s Guide](https://www.frontiersin.org/articles/10.3389/frai.2021.681117/full)
     /// 
-    #[pyo3(signature = (birth_simplex, problem_type=None, verbose=true))]
+    #[pyo3(signature = (birth_simplex, problem_type=None, validate_output=false, verbose=true))]
     pub fn optimize_cycle< 'py >( 
                 &self,
                 birth_simplex:                      Vec< u16 >,
                 problem_type:                       Option< &str >,
+                validate_output:                    bool,
                 verbose:                            bool,
                 py: Python< 'py >,
             ) -> PyResult<PyObject> { // MinimalCyclePyWeightedSimplexRational {
 
         // inputs
-        let matching                  =   self.differential_umatch.generalized_matching_matrix();        
+        let matching                  =   self.differential_umatch.generalized_matching_matrix();  
+        let differential_comb                       =   self.differential_umatch.differential_comb();      
         let ring_operator             =   self.differential_umatch.ring_operator();
+        let order_operator                          =   self.differential_umatch.boundary_matrix().order_operator_for_column_entries();
+
         
         // matrix a, vector c, and the dimension function
         let dim_fn = |x: &WeightedSimplex<FiltrationValue> | x.dimension() as isize;
@@ -4637,8 +4642,10 @@ impl DifferentialUmatchVietorisRipsPython{
         let diam = self.differential_umatch.boundary_matrix().filtration_value_for_clique(&birth_simplex).unwrap();
         let birth_column = WeightedSimplex{ vertices: birth_simplex.clone(), weight: diam };
         let dimension = birth_column.dimension();
-        let b = self.differential_umatch.differential_comb().column( &birth_column );
+        let b = differential_comb.column( &birth_column );
 
+
+        // column indices of the constraint matrix, A
         let column_indices = match problem_type.unwrap_or("preserve PH basis") {
             "preserve homology class"    =>  {
                 self.differential_umatch
@@ -4671,9 +4678,14 @@ impl DifferentialUmatchVietorisRipsPython{
             frac.unwrap()
         };
 
+        // function to turn rational vectors to float vectors
+        let to_float_vec = |x: Vec<(WeightedSimplex<_>, Ratio<isize>)>| -> Vec< (WeightedSimplex<OrderedFloat<f64>>, f64) > {
+            x.into_iter().map(|(simplex, coefficient)| (simplex, coefficient.to_f64().unwrap())).collect_vec()                
+        };
+
         // function to change R-linear combination to a Q-linear combination
         let order_operator = self.differential_umatch.boundary_matrix().order_operator_for_column_entries();
-        let format_chain = |x: Vec<_>| {
+        let to_rational_vec = |x: Vec<_>| {
             let mut r = x
                 .into_iter()
                 .map(|(k,v): (WeightedSimplex<_>,f64) | (k,to_ratio(v)))
@@ -4683,6 +4695,22 @@ impl DifferentialUmatchVietorisRipsPython{
             );
             r
         };
+
+        // create a version of the differential COMB with float coefficients, to avoid integer 
+        // overflow errors which otherwise arise from multiplying rational vectors with matrices
+        // (this function is an oracle to look up matrix columns)
+        let differential_comb_float = |x| -> Vec< (WeightedSimplex<OrderedFloat<f64>>, f64) > {
+            to_float_vec( differential_comb.column(&x).collect_vec() )             
+        };
+
+        // create a generalized inverse of the matching matrix (obtained by transposing and inverting nonzero coefficients)
+        // with float coefficients
+        // (this function is an oracle to look up columns of the generalized inverse, which correspond to rows of the matching matrix)        
+        let matching_generalized_inverse_float = |x| -> Vec< (WeightedSimplex<OrderedFloat<f64>>, f64) > {
+            matching.row(&x)
+                .map(|(simplex,coefficient)| (simplex, coefficient.inv().to_f64().unwrap() ))
+                .collect_vec()
+        };        
 
 
         // solve
@@ -4695,96 +4723,88 @@ impl DifferentialUmatchVietorisRipsPython{
         ).unwrap();         
         
         // optimal solution data
-        let x                           =     format_chain( optimized.x().clone() );       
-        let cycle_optimal               =     format_chain( optimized.y().clone() );
+        let cycle_optimal               =     to_rational_vec( optimized.y().clone() );
         let cycle_initial               =     optimized.b().clone();        
 
 
-
-        // triangles involved
-        let mut surface_between_cycles = Vec::with_capacity(x.len()); // first compute a vector v such that DJv = Jx (modulo essential cycles)
-        for (index,coefficient) in x.iter().cloned() {
-            if let Some( (column_index, matching_coefficient) ) = matching.row( &index ).next() { // only take entries for boundaries                
-                let corrected_coefficient = ring_operator.divide(coefficient, matching_coefficient);
-                surface_between_cycles.push( (column_index,  corrected_coefficient) );
-            }
-        }
-        let surface_between_cycles = surface_between_cycles
-                .into_iter()
-                .multiply_self_as_a_column_vector_with_matrix( 
-                    self.differential_umatch.differential_comb() 
-                )
-                .collect_vec();
+        // triangles involved        
+        let ring_operator_float = oat_rust::algebra::rings::types::native::FieldFloat64::new();
+        let surface_between_cycles = optimized.x()
+            .multiply_matrix_fnmut(matching_generalized_inverse_float,  ring_operator_float.clone(), OrderOperatorAuto)
+            .multiply_matrix_fnmut(differential_comb_float,             ring_operator_float.clone(), OrderOperatorAuto)
+            .collect_vec();                                         
 
         // essential cycles involved
         let essential_difference    =   
-            x.iter().cloned()
-            .filter( |x| matching.lacks_a_match_for_row_index( &x.0 ) ) // only take entries for boundaries
-            .multiply_self_as_a_column_vector_with_matrix( 
-                self.differential_umatch.differential_comb() 
-            )
-            .collect_vec();      
+            optimized.x().iter().cloned()
+                .filter( |x| matching.lacks_a_match_for_row_index( &x.0 ) ) // only take entries for boundaries
+                .multiply_matrix_fnmut(differential_comb_float,  ring_operator_float.clone(), OrderOperatorAuto)
+                .collect_vec();      
 
-        // //  CHECK THE RESULTS
-        // //  --------------------
-        // //
-        // //  * COMPUTE (Ax + z) - y
-        // //  * ENSURE ALL VECTORS ARE SORTED
+        if validate_output {
 
-        // let ring_operator   =   self.decomposition.umatch().ring_operator();      
+            // //  CHECK THE RESULTS
+            // //  --------------------
+            // //
+            // //  * COMPUTE (Ax + z) - y
+            // //  * ENSURE ALL VECTORS ARE SORTED
 
-        // // We place all iterators in wrappers that check that the results are sorted
-        // let y   =   RequireStrictAscentWithPanic::new( 
-        //                     cycle_optimal.iter().cloned(),  // sorted in reverse
-        //                     order_operator,                 // judges order in reverse
-        //                 );
-        
+            let ring_operator   =   self.differential_umatch.ring_operator();      
 
-        // let z   =   RequireStrictAscentWithPanic::new( 
-        //                     cycle_initial.iter().cloned(),  // sorted in reverse
-        //                     order_operator,                 // judges order in reverse
-        //                 );                                           
+            // We place all iterators in wrappers that check that the results are sorted
+            let y   =   RequireStrictAscentWithPanic::new( 
+                                cycle_optimal.iter().cloned(),  // sorted in reverse
+                                order_operator,                 // judges order in reverse
+                            );
             
-        // // the portion of Ax that comes from essential cycles;  we have go through this more complicated construction, rather than simply multiplying by the jordan basis matrix, because we've changed basis for the bounding difference chain
-        // let ax0 =   RequireStrictAscentWithPanic::new( 
-        //                     essential_difference.iter().cloned(),   // sorted in reverse
-        //                     order_operator,                         // judges order in reverse
-        //                 );                  
 
-        // // the portion of Ax that comes from non-essential cycles;  we have go through this more complicated construction, rather than simply multiplying by the jordan basis matrix, because we've changed basis for the bounding difference chain
-        // let ax1
-        //     =   RequireStrictAscentWithPanic::new( 
-        //             bounding_difference
-        //                 .iter()
-        //                 .cloned()
-        //                 .multiply_self_as_a_column_vector_with_matrix_and_return_entries_in_reverse_order(self.decomposition.umatch().matrix_to_factor_ref()),  // sorted in reverse
-        //             order_operator,                 // judges order in reverse
-        //         );  
+            let z   =   RequireStrictAscentWithPanic::new( 
+                                cycle_initial.iter().cloned(),  // sorted in reverse
+                                order_operator,                 // judges order in reverse
+                            );                                           
+                
+            // the portion of Ax that comes from essential cycles;  we have go through this more complicated construction, rather than simply multiplying by the jordan basis matrix, because we've changed basis for the bounding difference chain
+            let ax0 =   RequireStrictAscentWithPanic::new( 
+                                to_rational_vec(essential_difference.clone()).into_iter(),   // sorted in reverse
+                                order_operator,                         // judges order in reverse
+                            );                  
+
+            // the portion of Ax that comes from non-essential cycles;  we have go through this more complicated construction, rather than simply multiplying by the jordan basis matrix, because we've changed basis for the bounding difference chain
+            let ax1
+                =   RequireStrictAscentWithPanic::new( 
+                        to_rational_vec(surface_between_cycles.clone())
+                            .iter()
+                            .cloned()
+                            .multiply_self_as_a_column_vector_with_matrix_and_return_entries_in_reverse_order(self.differential_umatch.boundary_matrix()),  // sorted in reverse
+                        order_operator,                 // judges order in reverse
+                    );  
 
 
-        // let ax_plus_z_minus_y
-        //     =   RequireStrictAscentWithPanic::new( 
-        //             ax0.peekable()
-        //                 .add(
-        //                         ax1.peekable(),
-        //                         ring_operator,
-        //                         order_operator,
-        //                     )
-        //                 .peekable()
-        //                 .add(
-        //                         z.into_iter().peekable(),
-        //                         ring_operator,
-        //                         order_operator,
-        //                     )
-        //                 .peekable()
-        //                 .subtract(
-        //                         y.into_iter().peekable(),
-        //                         ring_operator,
-        //                         order_operator,
-        //                     ),
-        //             order_operator,                 
-        //         )
-        //         .collect_vec();      
+            let ax_plus_z_minus_y
+                =   RequireStrictAscentWithPanic::new( 
+                        ax0.peekable()
+                            .add(
+                                    ax1.peekable(),
+                                    ring_operator,
+                                    order_operator,
+                                )
+                            .peekable()
+                            .add(
+                                    z.into_iter().peekable(),
+                                    ring_operator,
+                                    order_operator,
+                                )
+                            .peekable()
+                            .subtract(
+                                    y.into_iter().peekable(),
+                                    ring_operator,
+                                    order_operator,
+                                ),
+                        order_operator,                 
+                    )
+                    .collect_vec();     
+            assert!( ax_plus_z_minus_y.is_empty() ); 
+        }
 
         let dict = PyDict::new(py);
 
@@ -4822,7 +4842,7 @@ impl DifferentialUmatchVietorisRipsPython{
             vec![ 
                 Some(cycle_initial.len()), 
                 Some(cycle_optimal.len()), 
-                Some(x.len()),
+                Some(optimized.x().len()),
                 Some(surface_between_cycles.len()),
                 Some(essential_difference.len()),
                 None,
@@ -4836,9 +4856,9 @@ impl DifferentialUmatchVietorisRipsPython{
             vec![ 
                 Some(cycle_initial.into_dataframe_format(py).ok()), 
                 Some(cycle_optimal.into_dataframe_format(py).ok()), 
-                Some(x.into_dataframe_format(py).ok()),
-                Some(surface_between_cycles.into_dataframe_format(py).ok()),
-                Some(essential_difference.into_dataframe_format(py).ok()),
+                Some(to_rational_vec(optimized.x().clone()).into_dataframe_format(py).ok()),
+                Some(to_rational_vec(surface_between_cycles).into_dataframe_format(py).ok()),
+                Some(to_rational_vec(essential_difference).into_dataframe_format(py).ok()),
                 None,
                 None,
                 ] 
@@ -4926,7 +4946,7 @@ impl DifferentialUmatchVietorisRipsPython{
 
         // function to change R-linear combination to a Q-linear combination
         let order_operator = self.differential_umatch.boundary_matrix().order_operator_for_column_entries();
-        let format_chain = |x: Vec<_>| {
+        let to_rational_vec = |x: Vec<_>| {
             let mut r = x
                 .into_iter()
                 .map(|(k,v): (WeightedSimplex<_>,f64) | (k,to_ratio(v)))
@@ -4948,8 +4968,8 @@ impl DifferentialUmatchVietorisRipsPython{
         ).unwrap();         
         
         // optimal solution data
-        let x                           =     format_chain( optimized.x().clone() );       
-        let cycle_optimal               =     format_chain( optimized.y().clone() );
+        let x                           =     to_rational_vec( optimized.x().clone() );       
+        let cycle_optimal               =     to_rational_vec( optimized.y().clone() );
         let cycle_initial               =     optimized.b().clone();        
 
         let dict = PyDict::new(py);
@@ -5071,7 +5091,7 @@ impl DifferentialUmatchVietorisRipsPython{
 
         // formatting
         let to_ratio = |x: f64| -> Ratio<isize> { Ratio::<isize>::approximate_float(x).unwrap() };
-        let format_chain = |x: Vec<_>| {
+        let to_rational_vec = |x: Vec<_>| {
             let mut r = x
                 .into_iter()
                 .map(|(k,v): (WeightedSimplex<_>,f64) | (k,to_ratio(v)))
@@ -5082,7 +5102,7 @@ impl DifferentialUmatchVietorisRipsPython{
         };
 
         // optimal solution data     
-        let chain_optimal               =     format_chain( optimized.y().clone() );
+        let chain_optimal               =     to_rational_vec( optimized.y().clone() );
         let mut chain_initial           =     optimized.b().clone();        
         chain_initial.sort();
 
@@ -5221,7 +5241,7 @@ impl DifferentialUmatchVietorisRipsPython{
 
         // formatting
         let to_ratio = |x: f64| -> Ratio<isize> { Ratio::<isize>::approximate_float(x).unwrap() };
-        let format_chain = |x: Vec<_>| {
+        let to_rational_vec = |x: Vec<_>| {
             let mut r = x
                 .into_iter()
                 .map(|(k,v): (WeightedSimplex<_>,f64) | (k,to_ratio(v)))
@@ -5232,8 +5252,8 @@ impl DifferentialUmatchVietorisRipsPython{
         };
         
         // optimal solution data
-        let x                           =     format_chain( optimized.x().clone() );       
-        let chain_optimal               =     format_chain( optimized.y().clone() );
+        let x                           =     to_rational_vec( optimized.x().clone() );       
+        let chain_optimal               =     to_rational_vec( optimized.y().clone() );
         let mut chain_initial           =     optimized.b().clone();        
         chain_initial.sort();
 
